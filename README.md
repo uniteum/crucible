@@ -69,14 +69,14 @@ ProtoScript requires two environment variables:
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `env`    | Deployment environment label (e.g. `prod`, `staging`, `dev`) | `prod` |
-| `chain`  | Chain name or identifier, used to organize output files | `arbitrum` |
+| `env`    | Deployment environment (`test` or `prod`) | `prod` |
+| `chain`  | Numerical chain ID | `1` |
 
 ### Running a deployment
 
 ```bash
-env=prod chain=arbitrum forge script script/MyContractProto.s.sol \
-    -f 42161 --private-key $tx_key --broadcast
+env=prod chain=42161 forge script script/MyContractProto.s.sol \
+    -f $chain --private-key $tx_key --broadcast
 ```
 
 ### The `io/` directory
@@ -84,14 +84,22 @@ env=prod chain=arbitrum forge script script/MyContractProto.s.sol \
 Each deployment writes the predicted contract address to a JSON file under:
 
 ```
-io/$env/$chain/$name.json
+io/<env>/<chain>/<file>.json
 ```
 
-For example, running `MyContractProto` with `env=prod` and `chain=arbitrum`
-writes to `io/prod/arbitrum/MyContractProto.json`:
+where `env` is `test` or `prod` and `chain` is the numerical chain ID. Test
+chains go under `test/`, production chains under `prod/`:
 
-```json
-"0x1234...abcd"
+```
+io/
+├── prod/
+│   ├── 1/                        # Ethereum mainnet
+│   │   └── MyContractProto.json
+│   └── 42161/                    # Arbitrum One
+│       └── MyContractProto.json
+└── test/
+    └── 11155111/                 # Sepolia
+        └── MyContractProto.json
 ```
 
 This provides a persistent, per-environment, per-chain record of deployed
