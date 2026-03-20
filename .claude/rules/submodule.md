@@ -1,7 +1,7 @@
 ---
 paths:
-  - "solidity/**"
-  - "solidity/README.md"
+  - "lib/solidity/**"
+  - "lib/solidity/README.md"
 ---
 
 # Submodule Maintenance

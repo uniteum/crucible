@@ -17,18 +17,19 @@ Contents:
 
 ## Symlink Architecture
 
-Consumer repos add this as a git submodule at `solidity/` and symlink files into place:
+Consumer repos add this as a git submodule at `lib/solidity/` and symlink files into place:
 
 ```
 repo/
-├── solidity/              ← this submodule
-├── foundry.toml           → solidity/foundry.toml
-├── .vscode                → solidity/.vscode
-├── remappings.txt         ← per-repo (includes solidity/=solidity/)
+├── lib/
+│   └── solidity/          ← this submodule
+├── foundry.toml           → lib/solidity/foundry.toml
+├── .vscode                → lib/solidity/.vscode
+├── remappings.txt         ← per-repo (includes solidity/=lib/solidity/)
 ├── .claude/
-│   ├── settings.json      → ../solidity/.claude/settings.json
+│   ├── settings.json      → ../lib/solidity/.claude/settings.json
 │   └── rules/
-│       └── solidity.md    → ../../solidity/.claude/rules/solidity.md
+│       └── solidity.md    → ../../lib/solidity/.claude/rules/solidity.md
 └── CLAUDE.md              ← repo-specific (NOT symlinked)
 ```
 

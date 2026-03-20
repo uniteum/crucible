@@ -112,23 +112,23 @@ grants read-write `fs_permissions` to `./io/`.
 ### Adding to a repo
 
 ```bash
-git submodule add git@github.com:uniteum/solidity.git solidity
-ln -s solidity/foundry.toml foundry.toml
-ln -s solidity/.vscode .vscode
+git submodule add git@github.com:uniteum/solidity.git lib/solidity
+ln -s lib/solidity/foundry.toml foundry.toml
+ln -s lib/solidity/.vscode .vscode
 mkdir -p .claude/rules
-ln -s ../solidity/.claude/settings.json .claude/settings.json
-ln -s ../../solidity/.claude/rules/solidity.md .claude/rules/solidity.md
+ln -s ../lib/solidity/.claude/settings.json .claude/settings.json
+ln -s ../../lib/solidity/.claude/rules/solidity.md .claude/rules/solidity.md
 ```
 
 Add a remapping for the solidity submodule so Forge can resolve imports from it:
 
 ```
 # remappings.txt
-solidity/=solidity/
+solidity/=lib/solidity/
 ```
 
 Each repo's `remappings.txt` will also include entries for its own dependencies
-(e.g. `forge-std/=lib/forge-std/src/`). The `solidity/=solidity/` remapping is
+(e.g. `forge-std/=lib/forge-std/src/`). The `solidity/=lib/solidity/` remapping is
 the only one needed to use `ProtoScript` and any future shared scripts.
 
 ### Cloning a repo that uses this submodule
@@ -146,7 +146,7 @@ git submodule update --init
 ### Updating to the latest config
 
 ```bash
-git submodule update --remote solidity
+git submodule update --remote lib/solidity
 ```
 
 ## Per-repo overrides
