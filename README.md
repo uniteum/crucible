@@ -7,6 +7,7 @@ Shared Foundry configuration for Uniteum repos, consumed as a git submodule.
 - `foundry.toml` — canonical Foundry config shared across all `uniteum/*` repos
 - `.vscode/` — shared VS Code workspace settings
 - `.claude/rules/solidity.md` — Claude Code rules for Solidity development
+- `.claude/settings.json` — shared Claude Code permissions (Foundry tool access)
 - `AGENTS.md` — AI instructions for this repo (`CLAUDE.md` symlinks here)
 
 ### Compiler settings
@@ -38,6 +39,7 @@ git submodule add git@github.com:uniteum/solidity.git solidity
 ln -s solidity/foundry.toml foundry.toml
 ln -s solidity/.vscode .vscode
 mkdir -p .claude/rules
+ln -s ../solidity/.claude/settings.json .claude/settings.json
 ln -s ../../solidity/.claude/rules/solidity.md .claude/rules/solidity.md
 ```
 

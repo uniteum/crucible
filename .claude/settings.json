@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(forge build)",
+      "Bash(forge build *)",
+      "Bash(forge test)",
+      "Bash(forge test *)",
+      "Bash(FOUNDRY_PROFILE=* forge test *)",
+      "Bash(forge fmt)",
+      "Bash(forge fmt *)",
+      "Bash(forge inspect *)",
+      "Bash(forge coverage *)"
+    ],
+    "deny": [
+      "Bash(forge script *)",
+      "Bash(forge create *)",
+      "Bash(forge verify-contract *)"
+    ]
+  }
+}

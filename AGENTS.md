@@ -10,6 +10,7 @@ It is not a standalone project — it has no `src/`, no contracts, no tests.
 Contents:
 - `foundry.toml` — canonical Foundry config
 - `.vscode/` — shared VS Code workspace settings
+- `.claude/settings.json` — shared Claude Code permissions
 - `.claude/rules/solidity.md` — Claude Code rules for Solidity development
 - `.gitignore` — shared ignore patterns
 
@@ -22,8 +23,10 @@ repo/
 ├── solidity/              ← this submodule
 ├── foundry.toml           → solidity/foundry.toml
 ├── .vscode                → solidity/.vscode
-├── .claude/rules/
-│   └── solidity.md        → ../../solidity/.claude/rules/solidity.md
+├── .claude/
+│   ├── settings.json      → ../solidity/.claude/settings.json
+│   └── rules/
+│       └── solidity.md    → ../../solidity/.claude/rules/solidity.md
 └── CLAUDE.md              ← repo-specific (NOT symlinked)
 ```
 
