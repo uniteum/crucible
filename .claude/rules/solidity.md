@@ -10,10 +10,22 @@ paths:
 ## Code Style
 
 - NatSpec: always use `/** */` multi-line block notation, never `///`
+- Include `@notice` for public descriptions, `@param` and `@return` as needed
 - Function visibility order: external → public → internal → private
+- Imports: one per line, sorted alphabetically
 - Max line length: 120 characters
 - Indentation: 4 spaces
 - Run `forge fmt` before committing
+- Multi-line function declarations:
+  ```solidity
+  // CORRECT
+  function longFunctionName(uint256 param1, uint256 param2)
+      public
+      returns (uint256 result1, uint256 result2)
+  {
+      // body
+  }
+  ```
 
 ## Compiler & EVM
 
@@ -30,6 +42,18 @@ paths:
 - Factory deployments: CREATE2 deterministic deployment
 - Minimal proxies: EIP-1167 via OpenZeppelin Clones
 
+## Code Quality
+
+**All generated code MUST be lint-free.**
+
+Pre-commit checklist:
+1. Run `forge fmt` on all modified `.sol` files
+2. Verify compilation: `forge build`
+3. Run affected tests: `forge test`
+4. Check for warnings in compiler output
+
+When writing code, mentally verify it follows forge fmt rules. If unsure, write cleanly and expect forge fmt may auto-format.
+
 ## Testing
 
 - Default to smoke tests: target specific tests with `--match-test` or `--match-contract` for fast feedback
@@ -43,7 +67,6 @@ paths:
 - Test: `forge test`
 - Format: `forge fmt`
 - Gas report: `forge test --gas-report`
-- Pre-commit: format, build, then run affected tests
 
 ## OpenZeppelin Ports — Do Not Review
 
@@ -65,3 +88,6 @@ Do not flag style violations or suggest changes to their code.
 - Do not add unnecessary error handling or validation beyond what the protocol requires
 - Do not refactor or "improve" surrounding code when fixing a specific issue
 - Do not delete or overwrite files without explicit confirmation
+- Add blank line before function if missing
+- Remove trailing whitespace
+- Ensure consistent spacing around operators
