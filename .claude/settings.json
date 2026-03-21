@@ -28,6 +28,9 @@
       "Bash(git -C * rev-parse *)",
       "Bash(git -C * blame *)",
       "Bash(git -C * remote *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(echo *)",
       "Edit",
       "Write"
     ],
