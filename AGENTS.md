@@ -7,40 +7,21 @@
 This is a **shared infrastructure submodule** consumed by all `uniteum/*` Solidity repos.
 It provides configuration and base scripts but has no `src/` contracts or tests of its own.
 
-Contents:
-- `foundry.toml` — canonical Foundry config
-- `script/Proto.s.sol` — abstract base script for CREATE2 protofactory deployments
-- `.vscode/` — shared VS Code workspace settings
-- `.claude/settings.json` — shared Claude Code permissions
-- `.claude/rules/solidity.md` — Claude Code rules for Solidity development
-- `.gitignore` — shared ignore patterns
+See the [Symlinks table in README.md](README.md#symlinks) for which files
+consumer repos symlink and which are consumed differently.
 
 ## Symlink Architecture
 
-Consumer repos add this as a git submodule at `lib/solidity/` and symlink files into place:
-
-```
-repo/
-├── lib/
-│   └── solidity/          ← this submodule
-├── foundry.toml           → lib/solidity/foundry.toml
-├── .vscode                → lib/solidity/.vscode
-├── remappings.txt         ← per-repo (includes solidity/=lib/solidity/)
-├── .claude/
-│   ├── settings.json      → ../lib/solidity/.claude/settings.json
-│   └── rules/
-│       └── solidity.md    → ../../lib/solidity/.claude/rules/solidity.md
-└── CLAUDE.md              ← repo-specific (NOT symlinked)
-```
+Consumer repos add this as a git submodule at `lib/solidity/` and symlink
+specific files into their repo root. The **single source of truth** for what
+gets symlinked is the [Symlinks table in README.md](README.md#symlinks).
 
 ### When Adding New Files
 
 When a new file is added to this repo, **ask the user** whether consumer repos
-should symlink it. If yes:
-
-1. Add the symlink command to the "Adding to a repo" section in `README.md`
-2. Note the relative symlink path (it must work from the consumer repo root)
-3. The user will need to create the symlinks in each consumer repo separately
+should symlink it. If yes, update the Symlinks table and the setup commands in
+`README.md`. The user will need to create the symlinks in each consumer repo
+separately.
 
 ## Editing Guidelines
 
@@ -65,8 +46,7 @@ should symlink it. If yes:
 ### README.md
 
 - Primary audience: developers adding or updating the submodule in their repos
-- Keep the symlink instructions current with the actual repo contents
-- Update the "What's in here" list when files are added or removed
+- Keep the Symlinks table and setup commands current with actual repo contents
 
 ## Do Not
 

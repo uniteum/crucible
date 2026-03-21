@@ -3,14 +3,106 @@
 Shared Foundry configuration and deployment scripts for Uniteum repos, consumed
 as a git submodule.
 
-## What's in here
+## New repo setup
 
-- `foundry.toml` — canonical Foundry config shared across all `uniteum/*` repos
-- `script/Proto.s.sol` — base deployment script for CREATE2 protofactory contracts
-- `.vscode/` — shared VS Code workspace settings
-- `.claude/rules/solidity.md` — Claude Code rules for Solidity development
-- `.claude/settings.json` — shared Claude Code permissions (Foundry tool access)
-- `AGENTS.md` — AI instructions for this repo (`CLAUDE.md` symlinks here)
+Follow these steps in order from the root of a new `uniteum/*` repo.
+
+### 1. Install Foundry dependencies
+
+```bash
+forge install foundry-rs/forge-std
+git submodule add git@github.com:uniteum/solidity.git lib/solidity
+```
+
+### 2. Create symlinks
+
+These keep your repo in sync with the shared config. See the
+[Symlinks](#symlinks) table for what each file does.
+
+```bash
+ln -s lib/solidity/foundry.toml foundry.toml
+ln -s lib/solidity/.vscode .vscode
+mkdir -p .claude/rules
+ln -s ../lib/solidity/.claude/settings.json .claude/settings.json
+ln -s ../../lib/solidity/.claude/rules/solidity.md .claude/rules/solidity.md
+```
+
+### 3. Copy the .gitignore
+
+```bash
+cp lib/solidity/.gitignore .gitignore
+```
+
+The `.gitignore` is copied rather than symlinked so repos can add their own
+patterns. Edit as needed.
+
+### 4. Create remappings.txt
+
+```
+forge-std/=lib/forge-std/src/
+solidity/=lib/solidity/
+```
+
+Add additional lines for any other submodule dependencies your repo uses (e.g.
+`mylib/=lib/mylib/`).
+
+### 5. Create your source directories
+
+```bash
+mkdir src test script
+```
+
+### 6. Verify
+
+```bash
+forge build
+```
+
+Your repo is ready. The resulting structure should look like this:
+
+```
+repo/
+├── foundry.toml           → lib/solidity/foundry.toml
+├── .vscode                → lib/solidity/.vscode
+├── .gitignore               (copied from lib/solidity/.gitignore)
+├── remappings.txt           (per-repo)
+├── .claude/
+│   ├── settings.json      → ../lib/solidity/.claude/settings.json
+│   └── rules/
+│       └── solidity.md    → ../../lib/solidity/.claude/rules/solidity.md
+├── lib/
+│   ├── forge-std/
+│   └── solidity/            ← this submodule
+├── src/
+├── test/
+└── script/
+```
+
+---
+
+## Symlinks
+
+This table is the **single source of truth** for what gets symlinked from this
+submodule into consumer repos.
+
+| Submodule file | Symlink in consumer repo | Purpose |
+|---|---|---|
+| `foundry.toml` | `foundry.toml` | Foundry compiler, profiles, and RPC config |
+| `.vscode/` | `.vscode` | Shared VS Code workspace settings |
+| `.claude/settings.json` | `.claude/settings.json` | Claude Code permissions (Foundry tool access) |
+| `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
+
+Files **not** symlinked:
+
+| File | How it's consumed |
+|---|---|
+| `script/Proto.s.sol` | Imported via `remappings.txt` (`solidity/=lib/solidity/`) |
+| `AGENTS.md` | AI instructions, internal to this submodule |
+| `.gitignore` | Copied (not symlinked) — repos may add their own patterns |
+
+---
+
+## Reference
 
 ### Compiler settings
 
@@ -31,6 +123,21 @@ Select a profile with `FOUNDRY_PROFILE=ci forge test`.
 
 Endpoints are keyed by chain ID and point to free public RPCs. No secrets or
 environment variables required for standard usage.
+
+### Per-repo overrides
+
+If a repo needs to diverge from the shared config, use `FOUNDRY_*` environment
+variables to override individual settings without forking `foundry.toml`:
+
+```bash
+# .env (repo-specific)
+FOUNDRY_OUT=out/custom
+```
+
+See the [Foundry docs](https://book.getfoundry.sh/reference/config/overview)
+for the full list of supported `FOUNDRY_*` env vars.
+
+---
 
 ## ProtoScript
 
@@ -107,29 +214,9 @@ addresses that scripts and tests can read back. The `io/` directory is local to
 each consumer repo (not inside the solidity submodule). `foundry.toml` already
 grants read-write `fs_permissions` to `./io/`.
 
-## Usage
+---
 
-### Adding to a repo
-
-```bash
-git submodule add git@github.com:uniteum/solidity.git lib/solidity
-ln -s lib/solidity/foundry.toml foundry.toml
-ln -s lib/solidity/.vscode .vscode
-mkdir -p .claude/rules
-ln -s ../lib/solidity/.claude/settings.json .claude/settings.json
-ln -s ../../lib/solidity/.claude/rules/solidity.md .claude/rules/solidity.md
-```
-
-Add a remapping for the solidity submodule so Forge can resolve imports from it:
-
-```
-# remappings.txt
-solidity/=lib/solidity/
-```
-
-Each repo's `remappings.txt` will also include entries for its own dependencies
-(e.g. `forge-std/=lib/forge-std/src/`). The `solidity/=lib/solidity/` remapping is
-the only one needed to use `ProtoScript` and any future shared scripts.
+## Maintenance
 
 ### Cloning a repo that uses this submodule
 
@@ -148,16 +235,3 @@ git submodule update --init
 ```bash
 git submodule update --remote lib/solidity
 ```
-
-## Per-repo overrides
-
-If a repo needs to diverge from the shared config, use `FOUNDRY_*` environment
-variables to override individual settings without forking `foundry.toml`:
-
-```bash
-# .env (repo-specific)
-FOUNDRY_OUT=out/custom
-```
-
-See the [Foundry docs](https://book.getfoundry.sh/reference/config/overview)
-for the full list of supported `FOUNDRY_*` env vars.
