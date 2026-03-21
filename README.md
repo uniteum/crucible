@@ -1,4 +1,4 @@
-# solidity
+# crucible
 
 Shared Foundry configuration and deployment scripts for Uniteum repos, consumed
 as a git submodule.
@@ -11,7 +11,7 @@ Follow these steps in order from the root of a new `uniteum/*` repo.
 
 ```bash
 forge install foundry-rs/forge-std
-git submodule add git@github.com:uniteum/solidity.git lib/solidity
+git submodule add git@github.com:uniteum/crucible.git lib/crucible
 ```
 
 ### 2. Create symlinks
@@ -20,17 +20,17 @@ These keep your repo in sync with the shared config. See the
 [Symlinks](#symlinks) table for what each file does.
 
 ```bash
-ln -s lib/solidity/foundry.toml foundry.toml
-ln -s lib/solidity/.vscode .vscode
+ln -s lib/crucible/foundry.toml foundry.toml
+ln -s lib/crucible/.vscode .vscode
 mkdir -p .claude/rules
-ln -s ../lib/solidity/.claude/settings.json .claude/settings.json
-ln -s ../../lib/solidity/.claude/rules/solidity.md .claude/rules/solidity.md
+ln -s ../lib/crucible/.claude/settings.json .claude/settings.json
+ln -s ../../lib/crucible/.claude/rules/solidity.md .claude/rules/solidity.md
 ```
 
 ### 3. Copy the .gitignore
 
 ```bash
-cp lib/solidity/.gitignore .gitignore
+cp lib/crucible/.gitignore .gitignore
 ```
 
 The `.gitignore` is copied rather than symlinked so repos can add their own
@@ -40,7 +40,7 @@ patterns. Edit as needed.
 
 ```
 forge-std/=lib/forge-std/src/
-solidity/=lib/solidity/
+crucible/=lib/crucible/
 ```
 
 Add additional lines for any other submodule dependencies your repo uses (e.g.
@@ -62,17 +62,17 @@ Your repo is ready. The resulting structure should look like this:
 
 ```
 repo/
-├── foundry.toml           → lib/solidity/foundry.toml
-├── .vscode                → lib/solidity/.vscode
-├── .gitignore               (copied from lib/solidity/.gitignore)
+├── foundry.toml           → lib/crucible/foundry.toml
+├── .vscode                → lib/crucible/.vscode
+├── .gitignore               (copied from lib/crucible/.gitignore)
 ├── remappings.txt           (per-repo)
 ├── .claude/
-│   ├── settings.json      → ../lib/solidity/.claude/settings.json
+│   ├── settings.json      → ../lib/crucible/.claude/settings.json
 │   └── rules/
-│       └── solidity.md    → ../../lib/solidity/.claude/rules/solidity.md
+│       └── solidity.md    → ../../lib/crucible/.claude/rules/solidity.md
 ├── lib/
 │   ├── forge-std/
-│   └── solidity/            ← this submodule
+│   └── crucible/            ← this submodule
 ├── src/
 ├── test/
 └── script/
@@ -96,7 +96,7 @@ Files **not** symlinked:
 
 | File | How it's consumed |
 |---|---|
-| `script/Proto.s.sol` | Imported via `remappings.txt` (`solidity/=lib/solidity/`) |
+| `script/Proto.s.sol` | Imported via `remappings.txt` (`crucible/=lib/crucible/`) |
 | `AGENTS.md` | AI instructions, internal to this submodule |
 | `.gitignore` | Copied (not symlinked) — repos may add their own patterns |
 
@@ -157,7 +157,7 @@ function creationCode() internal pure override returns (bytes memory);
 
 ```solidity
 import {MyContract} from "../src/MyContract.sol";
-import {ProtoScript} from "solidity/script/Proto.s.sol";
+import {ProtoScript} from "crucible/script/Proto.s.sol";
 
 contract MyContractProto is ProtoScript {
     function name() internal pure override returns (string memory) {
@@ -211,7 +211,7 @@ io/
 
 This provides a persistent, per-environment, per-chain record of deployed
 addresses that scripts and tests can read back. The `io/` directory is local to
-each consumer repo (not inside the solidity submodule). `foundry.toml` already
+each consumer repo (not inside the crucible submodule). `foundry.toml` already
 grants read-write `fs_permissions` to `./io/`.
 
 ---
@@ -233,5 +233,5 @@ git submodule update --init
 ### Updating to the latest config
 
 ```bash
-git submodule update --remote lib/solidity
+git submodule update --remote lib/crucible
 ```

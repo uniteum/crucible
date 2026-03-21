@@ -1,6 +1,6 @@
 # AGENTS.md — Shared Solidity Infrastructure
 
-> AI instructions for the `uniteum/solidity` submodule.
+> AI instructions for the `uniteum/crucible` submodule.
 
 ## What This Repo Is
 
@@ -12,7 +12,7 @@ consumer repos symlink and which are consumed differently.
 
 ## Symlink Architecture
 
-Consumer repos add this as a git submodule at `lib/solidity/` and symlink
+Consumer repos add this as a git submodule at `lib/crucible/` and symlink
 specific files into their repo root. The **single source of truth** for what
 gets symlinked is the [Symlinks table in README.md](README.md#symlinks).
 
