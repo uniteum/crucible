@@ -31,6 +31,7 @@
       "Bash(ls *)",
       "Bash(grep *)",
       "Bash(echo *)",
+      "Bash(ln *)",
       "Edit",
       "Write"
     ],
