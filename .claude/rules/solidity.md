@@ -68,6 +68,20 @@ When writing code, mentally verify it follows forge fmt rules. If unsure, write 
 - Format: `forge fmt`
 - Gas report: `forge test --gas-report`
 
+## Forge Command Safety
+
+**Denied** (permanent, irreversible consequences):
+- `forge script` — executes Solidity that can deploy contracts and send transactions on live networks; `--broadcast` sends to mainnet
+- `forge create` — deploys contracts directly using the user's private key; costs real gas and is permanent
+- `forge verify-contract` — publishes source code to Etherscan permanently; uses the user's `ETHERSCAN_API_KEY`
+
+**Allowed** (no permanent side effects):
+- `forge build` — compiles to local `out/`, overwritten on next build
+- `forge test` — runs in a local EVM fork, no state changes
+- `forge fmt` — reformats files locally, reversible via git
+- `forge inspect` — reads compiled artifact metadata, no writes
+- `forge coverage` — runs tests with coverage tracking, no writes beyond reports
+
 ## OpenZeppelin Ports — Do Not Review
 
 These uniteum repos are minimal ports of OpenZeppelin contracts.
