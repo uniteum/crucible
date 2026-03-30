@@ -3,6 +3,31 @@
 Shared Foundry configuration and deployment scripts for Uniteum repos, consumed
 as a git submodule.
 
+## Bitsy
+
+Crucible is designed to simplify the process of creating
+[Bitsy](bitsy.md) contracts by factoring out common workflow
+elements — shared compiler settings, deterministic deployment via
+`ProtoScript`, reusable test infrastructure, and shared AI agent
+rules so that Claude Code and other agents work consistently across
+all Uniteum repos.
+
+Not every contract deployed from a crucible-based repo is Bitsy.
+Protocol primitives — the contracts that hold user funds and define
+invariant math — are Bitsy. Convenience contracts that wrap or
+batch-call those primitives are not. For example, `SolidFactory`
+is deployed on-chain but takes a constructor argument and acts as
+a multi-call wrapper around `Solid.make` and `Solid.buy`. It is
+useful, but it is not a protocol primitive — it has no invariant
+of its own, and users don't need to trust it the way they trust
+the underlying Solid contract.
+
+The boundary: if a contract defines an invariant that user funds
+depend on, it should be Bitsy. If it exists to make Bitsy contracts
+easier to use, it doesn't need to be.
+
+---
+
 ## New repo setup
 
 Follow these steps in order from the root of a new `uniteum/*` repo.
