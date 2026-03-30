@@ -49,6 +49,7 @@ ln -s lib/crucible/foundry.toml foundry.toml
 ln -s lib/crucible/.vscode .vscode
 mkdir -p .claude/rules
 ln -s ../lib/crucible/.claude/settings.json .claude/settings.json
+ln -s lib/crucible/.mcp.json .mcp.json
 ln -s ../../lib/crucible/.claude/rules/solidity.md .claude/rules/solidity.md
 ln -s ../../lib/crucible/.claude/rules/crucible-tests.md .claude/rules/crucible-tests.md
 ```
@@ -92,6 +93,7 @@ repo/
 ├── .vscode                → lib/crucible/.vscode
 ├── .gitignore               (copied from lib/crucible/.gitignore)
 ├── remappings.txt           (per-repo)
+├── .mcp.json              → lib/crucible/.mcp.json
 ├── .claude/
 │   ├── settings.json      → ../lib/crucible/.claude/settings.json
 │   └── rules/
@@ -117,6 +119,7 @@ submodule into consumer repos.
 | `foundry.toml` | `foundry.toml` | Foundry compiler, profiles, and RPC config |
 | `.vscode/` | `.vscode` | Shared VS Code workspace settings |
 | `.claude/settings.json` | `.claude/settings.json` | Claude Code permissions (Foundry tool access) |
+| `.mcp.json` | `.mcp.json` | MCP server configuration (Etherscan) |
 | `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
 | `.claude/rules/crucible-tests.md` | `.claude/rules/crucible-tests.md` | Claude Code rules for test files |
 
@@ -127,6 +130,51 @@ Files **not** symlinked:
 | `script/Proto.s.sol` | Imported via `remappings.txt` (`crucible/=lib/crucible/`) |
 | `AGENTS.md` | AI instructions, internal to this submodule |
 | `.gitignore` | Copied (not symlinked) — repos may add their own patterns |
+
+---
+
+## MCP Servers
+
+Crucible ships an `.mcp.json` that configures the
+[Etherscan MCP](https://docs.etherscan.io/mcp) server. This gives Claude
+Code direct access to on-chain data across 60+ EVM chains: verified contract
+source, ABIs, transaction history, balances, and more.
+
+### Setup
+
+1. **Get an API key** from [etherscan.io/myapikey](https://etherscan.io/myapikey)
+   (free tier is sufficient — 5 calls/sec).
+
+2. **Export the key** in your shell profile (`.bashrc`, `.zshrc`, etc.):
+
+   ```bash
+   export ETHERSCAN_API_KEY="your-key-here"
+   ```
+
+3. **Symlink** `.mcp.json` into your repo root (already included in the
+   [New repo setup](#new-repo-setup) steps above):
+
+   ```bash
+   ln -s lib/crucible/.mcp.json .mcp.json
+   ```
+
+4. **Restart Claude Code** — it will detect the MCP server and prompt you
+   to approve it on first use.
+
+### What you can do with it
+
+- Fetch verified source code for any contract on any Etherscan-supported chain
+- Pull ABIs to generate Solidity interfaces
+- Inspect deployer addresses and constructor arguments
+- Check token balances, transaction history, and internal transactions
+- Compare deployed bytecode against local builds
+- Monitor gas prices
+
+### Access tiers
+
+Your Etherscan API key tier determines rate limits. The free tier (5 calls/sec)
+is enough for interactive use. If you hit rate limits during heavy analysis,
+consider upgrading at [etherscan.io/apis](https://etherscan.io/apis).
 
 ---
 
