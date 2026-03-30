@@ -34,7 +34,8 @@
       "Bash(find *)",
       "Bash(ln *)",
       "Edit",
-      "Write"
+      "Write",
+      "mcp__etherscan__*"
     ],
     "deny": [
       "Bash(forge script *)",
