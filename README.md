@@ -52,6 +52,7 @@ ln -s ../lib/crucible/.claude/settings.json .claude/settings.json
 ln -s lib/crucible/.mcp.json .mcp.json
 ln -s ../../lib/crucible/.claude/rules/solidity.md .claude/rules/solidity.md
 ln -s ../../lib/crucible/.claude/rules/crucible-tests.md .claude/rules/crucible-tests.md
+ln -s ../../lib/crucible/.claude/rules/submodule.md .claude/rules/submodule.md
 ln -s ../../lib/crucible/.claude/skills/bitsify .claude/skills/bitsify
 ```
 
@@ -99,7 +100,8 @@ repo/
 │   ├── settings.json      → ../lib/crucible/.claude/settings.json
 │   ├── rules/
 │   │   ├── solidity.md    → ../../lib/crucible/.claude/rules/solidity.md
-│   │   └── crucible-tests.md → ../../lib/crucible/.claude/rules/crucible-tests.md
+│   │   ├── crucible-tests.md → ../../lib/crucible/.claude/rules/crucible-tests.md
+│   │   └── submodule.md   → ../../lib/crucible/.claude/rules/submodule.md
 │   └── skills/
 │       └── bitsify        → ../../lib/crucible/.claude/skills/bitsify
 ├── lib/
@@ -125,6 +127,7 @@ submodule into consumer repos.
 | `.mcp.json` | `.mcp.json` | MCP server configuration (Etherscan) |
 | `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
 | `.claude/rules/crucible-tests.md` | `.claude/rules/crucible-tests.md` | Claude Code rules for test files |
+| `.claude/rules/submodule.md` | `.claude/rules/submodule.md` | Claude Code rules for submodule maintenance |
 | `.claude/skills/bitsify` | `.claude/skills/bitsify` | `/bitsify` skill — convert a contract to the Bitsy pattern |
 
 Files **not** symlinked:
