@@ -47,11 +47,12 @@ These keep your repo in sync with the shared config. See the
 ```bash
 ln -s lib/crucible/foundry.toml foundry.toml
 ln -s lib/crucible/.vscode .vscode
-mkdir -p .claude/rules
+mkdir -p .claude/rules .claude/skills
 ln -s ../lib/crucible/.claude/settings.json .claude/settings.json
 ln -s lib/crucible/.mcp.json .mcp.json
 ln -s ../../lib/crucible/.claude/rules/solidity.md .claude/rules/solidity.md
 ln -s ../../lib/crucible/.claude/rules/crucible-tests.md .claude/rules/crucible-tests.md
+ln -s ../../lib/crucible/.claude/skills/bitsify .claude/skills/bitsify
 ```
 
 ### 3. Copy the .gitignore
@@ -96,9 +97,11 @@ repo/
 ├── .mcp.json              → lib/crucible/.mcp.json
 ├── .claude/
 │   ├── settings.json      → ../lib/crucible/.claude/settings.json
-│   └── rules/
-│       ├── solidity.md    → ../../lib/crucible/.claude/rules/solidity.md
-│       └── crucible-tests.md → ../../lib/crucible/.claude/rules/crucible-tests.md
+│   ├── rules/
+│   │   ├── solidity.md    → ../../lib/crucible/.claude/rules/solidity.md
+│   │   └── crucible-tests.md → ../../lib/crucible/.claude/rules/crucible-tests.md
+│   └── skills/
+│       └── bitsify        → ../../lib/crucible/.claude/skills/bitsify
 ├── lib/
 │   ├── forge-std/
 │   └── crucible/            ← this submodule
@@ -122,6 +125,7 @@ submodule into consumer repos.
 | `.mcp.json` | `.mcp.json` | MCP server configuration (Etherscan) |
 | `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
 | `.claude/rules/crucible-tests.md` | `.claude/rules/crucible-tests.md` | Claude Code rules for test files |
+| `.claude/skills/bitsify` | `.claude/skills/bitsify` | `/bitsify` skill — convert a contract to the Bitsy pattern |
 
 Files **not** symlinked:
 
