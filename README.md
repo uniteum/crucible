@@ -50,6 +50,8 @@ ln -s lib/crucible/.vscode .vscode
 mkdir -p .claude/rules .claude/skills
 ln -s ../lib/crucible/.claude/settings.json .claude/settings.json
 ln -s lib/crucible/.mcp.json .mcp.json
+ln -s ../../lib/crucible/.claude/rules/always.md .claude/rules/always.md
+ln -s ../../lib/crucible/.claude/rules/lint.md .claude/rules/lint.md
 ln -s ../../lib/crucible/.claude/rules/solidity.md .claude/rules/solidity.md
 ln -s ../../lib/crucible/.claude/rules/crucible-tests.md .claude/rules/crucible-tests.md
 ln -s ../../lib/crucible/.claude/rules/submodule.md .claude/rules/submodule.md
@@ -99,6 +101,8 @@ repo/
 ├── .claude/
 │   ├── settings.json      → ../lib/crucible/.claude/settings.json
 │   ├── rules/
+│   │   ├── always.md      → ../../lib/crucible/.claude/rules/always.md
+│   │   ├── lint.md        → ../../lib/crucible/.claude/rules/lint.md
 │   │   ├── solidity.md    → ../../lib/crucible/.claude/rules/solidity.md
 │   │   ├── crucible-tests.md → ../../lib/crucible/.claude/rules/crucible-tests.md
 │   │   └── submodule.md   → ../../lib/crucible/.claude/rules/submodule.md
@@ -125,6 +129,8 @@ submodule into consumer repos.
 | `.vscode/` | `.vscode` | Shared VS Code workspace settings |
 | `.claude/settings.json` | `.claude/settings.json` | Claude Code permissions (Foundry tool access) |
 | `.mcp.json` | `.mcp.json` | MCP server configuration (Etherscan) |
+| `.claude/rules/always.md` | `.claude/rules/always.md` | Claude Code rules applied to all files |
+| `.claude/rules/lint.md` | `.claude/rules/lint.md` | Claude Code rules for Solidity linting |
 | `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
 | `.claude/rules/crucible-tests.md` | `.claude/rules/crucible-tests.md` | Claude Code rules for test files |
 | `.claude/rules/submodule.md` | `.claude/rules/submodule.md` | Claude Code rules for submodule maintenance |
