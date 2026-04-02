@@ -20,5 +20,7 @@ Common rule IDs:
 - `erc20-unchecked-transfer` — unchecked ERC-20 transfer/transferFrom return value
 - `unsafe-typecast` — potentially lossy type cast
 
-Use these to suppress false positives (e.g. names matching external interfaces,
-transfers in test mocks). Do not suppress legitimate warnings.
+**Suppression is a last resort.** Fix the warning first — rename the
+variable, drop unused return names, restructure the code. Only suppress
+when the name is dictated by an external interface or inherited signature
+and cannot be changed. If you suppress, add a comment explaining why.
