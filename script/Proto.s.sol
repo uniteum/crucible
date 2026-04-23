@@ -21,17 +21,12 @@ abstract contract ProtoScript is Script {
         console2.log("predicted:", predicted);
         if (predicted.code.length == 0) {
             vm.startBroadcast();
-            (bool ok, ) = NICK.call(abi.encodePacked(bytes32(0), code));
+            (bool ok,) = NICK.call(abi.encodePacked(bytes32(0), code));
             vm.stopBroadcast();
             require(ok, "create2 failed");
             console2.log("actual   :", predicted);
         } else {
             console2.log("already deployed");
         }
-
-        string memory dir = string.concat("io/", vm.envString("env"), "/", vm.envString("chain"));
-        string memory path = string.concat(dir, "/", n, ".json");
-        vm.createDir(dir, true);
-        vm.writeJson(vm.toString(predicted), path);
     }
 }
