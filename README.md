@@ -6,7 +6,7 @@ as a git submodule.
 ## Bitsy
 
 Crucible is designed to simplify the process of creating
-[Bitsy](bitsy.md) contracts by factoring out common workflow
+[Bitsy](https://uniteum.one/bitsy/) contracts by factoring out common workflow
 elements — shared compiler settings, deterministic deployment via
 `ProtoScript`, reusable test infrastructure, and shared AI agent
 rules so that Claude Code and other agents work consistently across
