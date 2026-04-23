@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Copy crucible files into this repo. Replaces any existing symlink
-# that points into lib/crucible with a plain copy of the same content.
+# Copy crucible files into this repo. Replaces any existing file or
+# directory symlink (or hardlink) into lib/crucible with a plain copy
+# of the same content.
 #
 # Run from the consumer repo root:
 #   bash lib/crucible/.claude/skills/smelt/smelt.sh
@@ -33,6 +34,27 @@ FILES=(
     .claude/skills/smelt/smelt.sh
 )
 
+# Pre-pass: replace any directory-symlink ancestor that points into
+# $SUB with a real directory, so later cp doesn't resolve dst back to
+# src via a symlinked ancestor (which would make rm destroy the source).
+real_sub="$(realpath "$SUB")"
+for f in "${FILES[@]}"; do
+    d="$(dirname "$f")"
+    while [ "$d" != "." ] && [ "$d" != "/" ]; do
+        if [ -L "$d" ]; then
+            tgt="$(realpath "$d")"
+            case "$tgt" in
+                "$real_sub"|"$real_sub"/*)
+                    rm "$d"
+                    mkdir -p "$d"
+                    echo "  $d/ (symlink -> real dir)"
+                    ;;
+            esac
+        fi
+        d="$(dirname "$d")"
+    done
+done
+
 for f in "${FILES[@]}"; do
     src="$SUB/$f"
     dst="$f"
@@ -44,8 +66,9 @@ for f in "${FILES[@]}"; do
 
     mkdir -p "$(dirname "$dst")"
 
-    # Replace any existing symlink with a copy.
-    if [ -L "$dst" ]; then
+    # Replace any existing symlink, or break any hardlink sharing the
+    # same inode as the source, before copying.
+    if [ -L "$dst" ] || [ "$src" -ef "$dst" ]; then
         rm "$dst"
     fi
 
