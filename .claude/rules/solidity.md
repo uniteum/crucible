@@ -95,6 +95,11 @@ Do not flag style violations or suggest changes to their code.
 - uniteum/reentrancy — utils/ReentrancyGuardTransient.sol
 - uniteum/strings — utils/Strings.sol
 
+## Troubleshooting
+
+- If format-on-save stops working, see
+  `crucible/.claude/troubleshooting/forge-fmt-on-save.md`.
+
 ## Common Mistakes to Avoid
 
 - Do not use `///` for NatSpec — always `/** */`
