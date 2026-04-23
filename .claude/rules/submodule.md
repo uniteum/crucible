@@ -20,6 +20,12 @@ commits that require cherry-picks to recover.
 
 ## Other guidelines (crucible)
 
-- When updating the crucible README, verify all symlinks pointing into the submodule are documented in both the "What's in here" list and the "Adding to a repo" setup commands.
-- When adding a new file to the submodule that consuming repos should symlink, update the README with the new symlink instruction.
-- To find all symlinks: `find . -type l -exec readlink -f {} \;`
+- Consumer repos receive shared crucible files as **copies**, refreshed
+  by `.claude/skills/smelt/smelt.sh`. The `FILES` array in that script
+  is the authoritative list — keep it in sync with the "Files" table
+  in the crucible README when adding or removing shared files.
+- To refresh a consumer repo (including converting legacy symlinks to
+  copies), run `bash lib/crucible/.claude/skills/smelt/smelt.sh` from
+  the consumer repo root, or invoke `/smelt` in Claude Code.
+- To find legacy symlinks still pointing into the submodule:
+  `find . -maxdepth 4 -type l -lname '*lib/crucible*'`

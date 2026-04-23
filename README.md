@@ -39,35 +39,23 @@ forge install foundry-rs/forge-std
 git submodule add git@github.com:uniteum/crucible.git lib/crucible
 ```
 
-### 2. Create symlinks
+### 2. Smelt the repo
 
-These keep your repo in sync with the shared config. See the
-[Symlinks](#symlinks) table for what each file does.
-
-```bash
-ln -s lib/crucible/foundry.toml foundry.toml
-ln -s lib/crucible/.vscode .vscode
-mkdir -p .claude/rules .claude/skills
-ln -s ../lib/crucible/.claude/settings.json .claude/settings.json
-ln -s lib/crucible/.mcp.json .mcp.json
-ln -s ../../lib/crucible/.claude/rules/always.md .claude/rules/always.md
-ln -s ../../lib/crucible/.claude/rules/lint.md .claude/rules/lint.md
-ln -s ../../lib/crucible/.claude/rules/solidity.md .claude/rules/solidity.md
-ln -s ../../lib/crucible/.claude/rules/crucible-tests.md .claude/rules/crucible-tests.md
-ln -s ../../lib/crucible/.claude/rules/submodule.md .claude/rules/submodule.md
-ln -s ../../lib/crucible/.claude/skills/bitsify .claude/skills/bitsify
-```
-
-### 3. Copy the .gitignore
+The `smelt.sh` script copies all shared crucible files into the repo.
 
 ```bash
-cp lib/crucible/.gitignore .gitignore
+bash lib/crucible/.claude/skills/smelt/smelt.sh
 ```
 
-The `.gitignore` is copied rather than symlinked so repos can add their own
-patterns. Edit as needed.
+See the [Files](#files) table below for what gets copied. Run `smelt.sh`
+again any time you want to refresh the copies from the submodule — it
+overwrites existing copies in place and replaces any legacy symlinks
+pointing into `lib/crucible/` with real files.
 
-### 4. Create remappings.txt
+Inside Claude Code, invoke `/smelt` to run the same workflow with
+additional checks.
+
+### 3. Create remappings.txt
 
 ```
 forge-std/=lib/forge-std/src/
@@ -77,13 +65,13 @@ crucible/=lib/crucible/
 Add additional lines for any other submodule dependencies your repo uses (e.g.
 `mylib/=lib/mylib/`).
 
-### 5. Create your source directories
+### 4. Create your source directories
 
 ```bash
 mkdir src test script
 ```
 
-### 6. Verify
+### 5. Verify
 
 ```bash
 forge build
@@ -93,24 +81,25 @@ Your repo is ready. The resulting structure should look like this:
 
 ```
 repo/
-├── foundry.toml           → lib/crucible/foundry.toml
-├── .vscode                → lib/crucible/.vscode
-├── .gitignore               (copied from lib/crucible/.gitignore)
+├── foundry.toml             (copied from lib/crucible/foundry.toml)
+├── .vscode/settings.json    (copied)
+├── .gitignore               (copied, repo may extend)
 ├── remappings.txt           (per-repo)
-├── .mcp.json              → lib/crucible/.mcp.json
+├── .mcp.json                (copied)
 ├── .claude/
-│   ├── settings.json      → ../lib/crucible/.claude/settings.json
+│   ├── settings.json        (copied)
 │   ├── rules/
-│   │   ├── always.md      → ../../lib/crucible/.claude/rules/always.md
-│   │   ├── lint.md        → ../../lib/crucible/.claude/rules/lint.md
-│   │   ├── solidity.md    → ../../lib/crucible/.claude/rules/solidity.md
-│   │   ├── crucible-tests.md → ../../lib/crucible/.claude/rules/crucible-tests.md
-│   │   └── submodule.md   → ../../lib/crucible/.claude/rules/submodule.md
+│   │   ├── always.md        (copied)
+│   │   ├── lint.md          (copied)
+│   │   ├── solidity.md      (copied)
+│   │   ├── crucible-tests.md (copied)
+│   │   └── submodule.md     (copied)
 │   └── skills/
-│       └── bitsify        → ../../lib/crucible/.claude/skills/bitsify
+│       ├── bitsify/SKILL.md (copied)
+│       └── smelt/           (copied — SKILL.md and smelt.sh)
 ├── lib/
 │   ├── forge-std/
-│   └── crucible/            ← this submodule
+│   └── crucible/              ← this submodule
 ├── src/
 ├── test/
 └── script/
@@ -118,31 +107,45 @@ repo/
 
 ---
 
-## Symlinks
+## Files
 
-This table is the **single source of truth** for what gets symlinked from this
-submodule into consumer repos.
+The **authoritative list** of files copied into consumer repos is the
+`FILES` array in [`.claude/skills/smelt/smelt.sh`](.claude/skills/smelt/smelt.sh).
+The table below is a human-readable summary.
 
-| Submodule file | Symlink in consumer repo | Purpose |
+| Submodule file | Copied to (same path in consumer) | Purpose |
 |---|---|---|
 | `foundry.toml` | `foundry.toml` | Foundry compiler, profiles, and RPC config |
-| `.vscode/` | `.vscode` | Shared VS Code workspace settings |
-| `.claude/settings.json` | `.claude/settings.json` | Claude Code permissions (Foundry tool access) |
+| `.vscode/settings.json` | `.vscode/settings.json` | Shared VS Code workspace settings |
 | `.mcp.json` | `.mcp.json` | MCP server configuration (Etherscan) |
+| `.claude/settings.json` | `.claude/settings.json` | Claude Code permissions (Foundry tool access) |
 | `.claude/rules/always.md` | `.claude/rules/always.md` | Claude Code rules applied to all files |
 | `.claude/rules/lint.md` | `.claude/rules/lint.md` | Claude Code rules for Solidity linting |
 | `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
 | `.claude/rules/crucible-tests.md` | `.claude/rules/crucible-tests.md` | Claude Code rules for test files |
 | `.claude/rules/submodule.md` | `.claude/rules/submodule.md` | Claude Code rules for submodule maintenance |
-| `.claude/skills/bitsify` | `.claude/skills/bitsify` | `/bitsify` skill — convert a contract to the Bitsy pattern |
+| `.claude/skills/bitsify/SKILL.md` | `.claude/skills/bitsify/SKILL.md` | `/bitsify` skill — convert a contract to the Bitsy pattern |
+| `.claude/skills/smelt/SKILL.md` | `.claude/skills/smelt/SKILL.md` | `/smelt` skill — apply the crucible pattern |
+| `.claude/skills/smelt/smelt.sh` | `.claude/skills/smelt/smelt.sh` | Copy script invoked by `/smelt` |
 
-Files **not** symlinked:
+Files handled specially:
 
 | File | How it's consumed |
 |---|---|
 | `script/Proto.s.sol` | Imported via `remappings.txt` (`crucible/=lib/crucible/`) |
+| `.gitignore` | Copied on first smelt only — repos may add their own patterns |
 | `AGENTS.md` | AI instructions, internal to this submodule |
-| `.gitignore` | Copied (not symlinked) — repos may add their own patterns |
+
+### Why copies instead of symlinks
+
+Earlier repos symlinked these files straight into `lib/crucible/`, which
+kept them in sync automatically but made the repo harder to read, broke
+on systems without symlink support, and surprised new contributors who
+edited a "local" file and found they'd changed the submodule. Copies are
+plain files; `smelt.sh` is the refresh mechanism.
+
+When smelting a legacy repo, `smelt.sh` deletes each symlink before
+writing the copy, so the conversion happens in one pass.
 
 ---
 
