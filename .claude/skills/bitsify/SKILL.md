@@ -13,9 +13,16 @@ allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 # Bitsify — Convert a Solidity contract to the Bitsy pattern
 
 You are converting a Solidity contract into a **Bitsy** contract.
-A Bitsy contract satisfies eight properties: immutable, permissionless,
-governance-free, cloned, deterministic, direct, composable, and
-math-only.
+
+A **Bitsy contract** is a prototype/factory. The prototype satisfies
+eight properties: immutable, permissionless, governance-free, cloned,
+deterministic, direct, composable, and math-only.
+
+Clones delegate to the prototype's code via EIP-1167, so they can't
+be upgraded — but they may carry mutable per-instance state, owners
+(mutable or immutable), or even internal governance. The control
+plane has to be baked into the prototype once; users of a clone
+consent to the rules the prototype already encodes.
 
 The input is a path to a Solidity contract file: `$ARGUMENTS`
 
@@ -26,9 +33,15 @@ Read the target contract. Before making any changes, identify:
 - **Constructor parameters** — these become `make()` / `zzInit()` args
   and salt inputs.
 - **Access control** — `onlyOwner`, `Ownable`, role checks, `msg.sender`
-  guards. These will be removed.
+  guards. Remove from prototype-level behavior. Per-clone access
+  control (an owner gating setters on an individual clone) is fine
+  so long as the mechanism is encoded in the prototype once and
+  can't be added post-deploy.
 - **Mutable parameters** — setters, governance hooks, adjustable fees,
-  pause mechanisms. These will be removed or baked in as constants.
+  pause mechanisms. If they mutate prototype-level behavior, remove
+  or bake in as constants. If they're per-clone (each instance's fee
+  tunable by its owner, say), they may stay — the prototype's code
+  still can't be changed.
 - **Oracle dependencies** — external price feeds, Chainlink, TWAP.
   Flag these for the user — replacing oracles with invariant math
   requires a redesign and cannot be automated.
@@ -214,18 +227,25 @@ function make(/* parameters */)
 call `make()` on any clone and have it forwarded to the prototype.
 This is convenient but optional.
 
-## Step 5: Strip access control
+## Step 5: Strip prototype-level access control
 
-Remove:
-- `Ownable`, `AccessControl`, and similar inheritance
-- `onlyOwner`, `onlyRole`, `onlyAdmin` modifiers
-- `owner()`, `renounceOwnership()`, `transferOwnership()`
-- Any `require(msg.sender == ...)` that gates a business function
+Access control on the **prototype** must go. Remove anything that
+gates the factory surface or the prototype's own behavior:
+- `Ownable`, `AccessControl`, and similar inheritance on the prototype
+- `onlyOwner` / `onlyRole` / `onlyAdmin` modifiers on `make()`,
+  `zzInit()`, or prototype-scope business functions
+- `renounceOwnership()`, `transferOwnership()` at prototype scope
+- Any `require(msg.sender == ...)` gating prototype-level behavior
 
-**Exception**: Identity checks that verify the caller is a valid
-clone of the same prototype are acceptable. These are not privilege
-checks — they prevent arbitrary external contracts from calling
-internal coordination functions. Pattern:
+**Per-clone access control is allowed.** Each clone may have its own
+owner (mutable or immutable) gating its own setters, as long as the
+ownership mechanism is encoded in the prototype's code and assigned
+at `zzInit()` time. The prototype is still permissionless; per-clone
+users consent to the rules by choosing to `make()` one.
+
+**Clone-identity checks** are also acceptable — not privilege checks
+but coordination guards, preventing arbitrary external contracts
+from calling internal prototype/clone coordination functions. Pattern:
 
 ```solidity
 modifier onlyClone() {
@@ -238,17 +258,24 @@ modifier onlyClone() {
 }
 ```
 
-## Step 6: Strip mutability
+## Step 6: Strip prototype-level mutability
 
-Remove:
-- Setter functions (`setFee()`, `setOracle()`, `updateConfig()`)
-- Pause/unpause mechanisms (`whenNotPaused`, `Pausable`)
-- Emergency functions (`emergencyWithdraw`, `shutdown`)
-- Governance hooks (`propose`, `vote`, `execute` — unless governance
-  IS the contract's purpose)
-- Fee switches, parameter tuning, upgradeable references
+Prototype-level behavior must be frozen. Remove anything that mutates
+the prototype itself or rules shared by every clone:
+- Setters on prototype-scope state
+- Pause/unpause of the factory (`whenNotPaused` on `make()`, etc.)
+- Emergency functions on the prototype (`emergencyWithdraw`,
+  `shutdown`)
+- Governance over prototype-level parameters
+- Prototype-wide fee switches, tunable globals, upgradeable references
 
-For each removed parameter, either:
+**Per-clone mutability is allowed.** A clone may have setters its
+owner can call, internal governance (voting, quorum), or pause/unpause
+of its own behavior — as long as the machinery is baked into the
+prototype's code. Mob is the canonical example: each mob has its own
+voters, proposals, and quorum; the Mob prototype has none.
+
+For each prototype-level mutable parameter you remove, either:
 - **Bake it in as a constant** (ask the user for the value), or
 - **Remove the feature entirely** if it doesn't make sense as a
   fixed value.
@@ -279,22 +306,32 @@ custom oracles), **do not silently remove them**. Instead:
 
 ## Step 9: Verify
 
-After all changes, check the result against each Bitsy property:
+All eight properties apply to the **prototype**. Clone-level behavior
+is governed by whatever the prototype encodes — if it's there by
+design, it's fine.
 
-1. **Immutable**: No upgrade mechanism, no admin key, no proxy
-   repointing, no `selfdestruct`.
-2. **Permissionless**: No `msg.sender` privilege checks on business
-   functions. Identity checks (is caller a valid clone?) are OK.
-3. **Zero governance**: No voting, no adjustable parameters post-deploy.
+1. **Immutable** (prototype): No upgrade mechanism on the prototype,
+   no admin key controlling prototype behavior, no proxy repointing,
+   no `selfdestruct`. Clones can't be upgraded either, since they
+   delegate to the prototype's code.
+2. **Permissionless** (factory): Anyone can call `make()`. No
+   `msg.sender` privilege checks on the factory surface or
+   prototype-scope functions. Per-clone owners gating per-clone
+   setters are fine. Clone-identity checks are fine.
+3. **Governance-free** (prototype): No voting or adjustable parameters
+   on the prototype. Per-clone governance (Mob-style) is fine.
 4. **Cloned**: Uses EIP-1167 minimal proxy via `Clones` library.
 5. **Deterministic**: `make()` uses CREATE2 with content-derived salt.
    `made()` predicts the address.
-6. **Direct**: Every operation is a single function call. No multi-step
-   workflows beyond standard ERC-20 approvals.
-7. **Composable**: Tokens are standard ERC-20. Interfaces are public
-   and well-defined.
-8. **Pure math**: No oracles, no external data feeds. Pricing (if any)
-   is determined by on-chain invariants.
+6. **Direct**: Every factory operation is a single function call. No
+   multi-step workflows on the prototype beyond standard ERC-20
+   approvals.
+7. **Composable**: Prototype exposes standard interfaces. Clones
+   present standard interfaces (e.g. ERC-20) where applicable.
+8. **Math-only** (prototype): No oracles or external data feeds in
+   prototype-level logic. Pricing that applies to all clones is
+   determined by on-chain invariants. Per-clone oracle use is a
+   design choice the prototype encodes.
 
 Report any property that cannot be satisfied and explain why.
 
