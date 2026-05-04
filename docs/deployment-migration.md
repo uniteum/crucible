@@ -8,17 +8,32 @@
 
 ## Scope
 
-Focus: **Mimicry** and its dependency closure. Mimicry's constructor
-is `Mimicry(Fountain, ICoinage, NativeSymbolLookup)`, so the
-in-scope prototypes are:
+Focus: **Mimicry** and its dependency closure.
+
+```
+locale/AddressLookup (prototype)
+   └─ PoolManagerLookup (clone)        ─┐
+locale/StringLookup (prototype)         │
+   └─ NativeSymbolLookup (clone)        │
+lepton/Lepton (== ICoinage)             │
+unispring/Fountain (prototype)  ────────┘  takes PoolManagerLookup
+unispring/Mimicry (prototype)              takes Fountain, ICoinage,
+                                                 NativeSymbolLookup
+```
+
+In-scope work by repo:
 
 1. **crucible** — provides the new shared scripts.
-2. **lepton** — `Lepton` (== `ICoinage` at `0x1EB890...`).
-3. **locale** — `StringLookup` (the prototype `NativeSymbolLookup`
-   clones from). `AddressLookup` is included too since Mimicry's
-   `mimic(...)` accepts an `IAddressLookup` as the original-token
-   reference for cross-chain mirrors.
-4. **unispring** — `Fountain`, then `Mimicry`.
+2. **lepton** — `Lepton` prototype (== `ICoinage` at `0x1EB890...`).
+3. **locale** — `AddressLookup` and `StringLookup` prototypes.
+4. **unispring** — the two locale clones (`PoolManagerLookup`,
+   `NativeSymbolLookup`) plus `Fountain` and `Mimicry` prototypes.
+
+`AddressLookup`'s `make(keyValues, variant)` keys clones by a
+chain-independent `(chainId, address)` mapping XOR'd with a variant,
+so clone addresses are the same on every chain even though their
+`value()` is chain-local. The Mimicry path therefore stays fully
+chain-independent.
 
 **Cheap follow-on:** `Manifold` is a sibling of Mimicry that takes
 only `Fountain` in its constructor, so once Fountain is migrated the
@@ -90,30 +105,40 @@ Nick. `NativeSymbolLookup` (`0x6a50503D...`) is a **clone** of locale's
 which describes it as "chain-local IStringLookup"), not a separate
 contract — so locale covers it.
 
-- [ ] Migrate `StringLookup.sh` to `io/StringLookup/StringLookup.sh`
-      (required for `NativeSymbolLookup`).
 - [ ] Migrate `AddressLookup.sh` to `io/AddressLookup/AddressLookup.sh`
-      (used by Mimicry's cross-chain mirror pattern).
-- [ ] Decide where the `NativeSymbolLookup` clone lives — locale
-      (as a sample/seed clone) or unispring (as a runtime dep).
-      Probably locale.
+      — required: Fountain reads the V4 PoolManager via a clone of it.
+- [ ] Migrate `StringLookup.sh` to `io/StringLookup/StringLookup.sh`
+      — required: Mimicry reads the chain's native gas-token symbol
+      via a clone of it.
+
+The clones themselves (`PoolManagerLookup`, `NativeSymbolLookup`) are
+consumer-owned and live in unispring/io/, since unispring picks the
+keyValues mapping and consumes the resulting addresses. Locale only
+ships the prototypes here.
 
 `ImmutableUintToAddress` and `ImmutableUintToUint` are deferred.
 
 ## unispring
 
-In-scope prototypes: **Fountain** and **Mimicry**.
+In-scope: two locale clones, then `Fountain`, then `Mimicry`.
 
+- [ ] Add `io/PoolManagerLookup/PoolManagerLookup.sh` — clone of
+      locale's `AddressLookup` keyed by the V4 PoolManager mapping
+      `(chainId → V4 PoolManager addr)`. `clone_predict` writes
+      `<addr>.txt` (factory call to `AddressLookup.make`) and
+      `<addr>.yml`. No `.json`.
+- [ ] Add `io/NativeSymbolLookup/NativeSymbolLookup.sh` — clone of
+      locale's `StringLookup` keyed by the native-symbol mapping.
 - [ ] Migrate `Fountain.sh` to `io/Fountain/Fountain.sh` calling
-      `proto_predict` (Nick + mined salt
-      `0x...01c8688910`).
+      `proto_predict` (Nick + mined salt `0x...01c8688910`,
+      constructor takes `PoolManagerLookup`).
 - [ ] Migrate `Mimicry.sh` to `io/Mimicry/Mimicry.sh` calling
-      `proto_predict` (Nick + mined salt
-      `0x...bdc7f617`, constructor takes `Fountain`,
-      `ICoinage`, `NativeSymbolLookup`).
+      `proto_predict` (Nick + mined salt `0x...bdc7f617`,
+      constructor takes `Fountain`, `ICoinage`, `NativeSymbolLookup`).
 - [ ] Smoke-test `bash lib/crucible/script/deploy.sh sepolia`
-      reproduces the existing mainnet addresses end-to-end (Lepton →
-      StringLookup clone → Fountain → Mimicry).
+      reproduces the existing mainnet addresses end-to-end:
+      AddressLookup → PoolManagerLookup clone, StringLookup →
+      NativeSymbolLookup clone, Lepton, Fountain, Mimicry.
 
 Cheap follow-on (do if it falls out for free):
 
