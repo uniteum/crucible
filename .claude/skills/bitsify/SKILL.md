@@ -161,10 +161,31 @@ function symbol() public view override returns (string memory) {
 
 Set `_name` and `_symbol` in `zzInit()`, not in the constructor.
 
+## The proto rule
+
+Two invariants every Bitsy maker must satisfy:
+
+1. **`make()` MUST return the same `home` address as `made()`** for
+   the same parameters. They cannot disagree on where the clone lives.
+2. **Clone addresses MUST be computed from the prototype** — both the
+   `predictDeterministicAddress` call in `made()` and the
+   `cloneDeterministic` call in `make()` use `proto` as the
+   implementation and the deployer, never `address(this)`.
+
+These invariants must hold no matter which instance the function is
+called on. If `make()` and `made()` are callable on clones, they must
+delegate to the prototype or otherwise return the same result the
+prototype would. If that's impractical — for example because `make()`
+depends on `msg.sender` and forwarding would break the identity — then
+`make()` on a clone must revert. It must never silently deploy a
+clone-of-clone or return an address that disagrees with `made()`.
+
 ## Step 3: Add `made()` — deterministic address prediction
 
 Add a view function that computes the deterministic address for a
-given set of parameters without deploying:
+given set of parameters without deploying. It must use `proto` as
+both the implementation and the deployer so the prediction is the
+same whether `made()` is called on the prototype or any clone:
 
 ```solidity
 function made(/* parameters */)
@@ -178,7 +199,8 @@ function made(/* parameters */)
     // Derive salt from ALL parameters that define the instance
     salt = keccak256(abi.encode(param1, param2, ...));
 
-    // Predict the CREATE2 address
+    // Predict the CREATE2 address — proto is BOTH the implementation
+    // and the deployer, so the result is identical from any caller.
     home = Clones.predictDeterministicAddress(
         address(proto), salt, address(proto)
     );
@@ -199,33 +221,42 @@ function made(/* parameters */)
 ## Step 4: Add `make()` — idempotent factory
 
 Add the factory function. It must be idempotent: calling it twice
-with the same parameters returns the same address.
+with the same parameters returns the same address. And it must
+satisfy the two invariants in [The proto rule](#the-proto-rule).
 
 ```solidity
 function make(/* parameters */)
     external
     returns (IContractName instance)
 {
+    // Required when make() can sensibly run on a clone: forward to
+    // the prototype so address(this) in cloneDeterministic is proto.
     if (this != proto) {
-        // Forward to prototype if called on a clone
         instance = proto.make(/* parameters */);
-    } else {
-        (bool exists, address home, bytes32 salt) =
-            made(/* parameters */);
-        instance = IContractName(home);
-        if (!exists) {
-            home = Clones.cloneDeterministic(
-                address(proto), salt, 0
-            );
-            ContractName(home).zzInit(/* parameters */);
-        }
+        return instance;
+    }
+
+    (bool exists, address home, bytes32 salt) = made(/* parameters */);
+    instance = IContractName(home);
+    if (!exists) {
+        // proto is BOTH the implementation and the deployer — never
+        // address(this). When make() runs on the prototype the two
+        // are equal, but writing proto explicitly is the rule.
+        Clones.cloneDeterministic(address(proto), salt, 0);
+        ContractName(home).zzInit(/* parameters */);
     }
 }
 ```
 
-**Clone forwarding**: The `if (this != proto)` block lets users
-call `make()` on any clone and have it forwarded to the prototype.
-This is convenient but optional.
+If `make()` cannot meaningfully run on a clone (for example because
+its behavior depends on `msg.sender` and forwarding would lose that
+identity), replace the forward with a revert:
+
+```solidity
+if (this != proto) revert Unauthorized();
+```
+
+Either way, `make()` and `made()` must never disagree on `home`.
 
 ## Step 5: Strip prototype-level access control
 
@@ -322,7 +353,9 @@ design, it's fine.
    on the prototype. Per-clone governance (Mob-style) is fine.
 4. **Cloned**: Uses EIP-1167 minimal proxy via `Clones` library.
 5. **Deterministic**: `make()` uses CREATE2 with content-derived salt.
-   `made()` predicts the address.
+   `made()` predicts the address. `make()` and `made()` agree on `home`
+   from any caller, and clone addresses are computed from `proto` —
+   see [The proto rule](#the-proto-rule).
 6. **Direct**: Every factory operation is a single function call. No
    multi-step workflows on the prototype beyond standard ERC-20
    approvals.
