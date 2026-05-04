@@ -47,31 +47,55 @@ stable through to mainnet rollout.
 
 ## lepton
 
-- [ ] Confirm Lepton is the prototype currently deployed at
-      `0x1EB8901612767C04b3819E8A743ADCe88F9Fe110` (referred to as
-      `ICoinage` in unispring's env).
-- [ ] Replace [`script/*.sh`](../../lepton/script/) with
-      `io/Lepton/Lepton.sh` calling `proto_predict`.
-- [ ] Generate `<addr>.txt`, `<addr>.yml`, `<addr>.json`.
+Confirmed: Lepton is the prototype at
+`0x1EB8901612767C04b3819E8A743ADCe88F9Fe110` (referred to as
+`ICoinage` in unispring's env). Deployed via Nick at salt
+`0x000000000000000000000000000000000000000000000000000000002b3fbfee`.
+
+- [ ] Migrate `Lepton.sh`, `FFF.sh`, `OOO.sh`, `pi.sh` to
+      `io/<contract>/<contract>.sh` calling `proto_predict`.
+- [ ] Add `<addr>.yml` alongside existing `<addr>.txt` and
+      `<addr>.json` artifacts (yml is the new file).
 - [ ] Smoke-test `bash lib/crucible/script/deploy.sh sepolia`
-      reproduces the existing mainnet address.
-
-## uniteum
-
-- [ ] Audit [`uniteum/script/`](../../uniteum/script/) for which
-      contracts are deployed (Multiply, Unit, UnitHelper, hub token).
-- [ ] Migrate each prototype to `io/<contract>/<contract>.sh`.
-- [ ] Migrate hub token (`Uniteum 1` at
-      `0x7D5B1349157335aEEB929080a51003B529758830`) — likely a clone
-      minted by Lepton.
-- [ ] Replace `verifyUnit.sh` usage with the shared `verify.sh`.
+      reproduces the existing mainnet addresses.
 
 ## locale
 
-- [ ] Audit [`locale/script/`](../../locale/script/) — confirm
-      `NativeSymbolLookup` (`0x6a50503D35804A057fB1754172ABc96242a1C300`)
-      and any other per-chain refs are deployed here.
-- [ ] Migrate each to `io/<contract>/<contract>.sh`.
+Confirmed: locale deploys four StringLookup-family prototypes via
+Nick. `NativeSymbolLookup` (`0x6a50503D...`) is a **clone** of locale's
+`StringLookup` prototype (per
+[unispring/script/MimicryDeploy.s.sol](../../unispring/script/MimicryDeploy.s.sol)
+which describes it as "chain-local IStringLookup"), not a separate
+contract — so locale covers it.
+
+- [ ] Migrate `AddressLookup.sh`, `ImmutableUintToAddress.sh`,
+      `ImmutableUintToUint.sh`, `StringLookup.sh` to
+      `io/<contract>/<contract>.sh` calling `proto_predict`.
+- [ ] Decide where the `NativeSymbolLookup` clone lives — locale (as
+      a sample/seed clone) or unispring (as one of its required
+      runtime deps). Probably locale.
+
+## uniteum
+
+**Divergent layout — needs reconciling with the design.** uniteum
+currently uses `forge script` Solidity scripts (`Unit.s.sol`,
+`Multiply.s.sol`, `UnitHelper.s.sol`) and a per-chain `io/` layout
+(`io/1/`, `io/11155111/`) because `Unit`'s constructor takes a
+chain-specific `HUB_SOLID` address. This breaks the
+"chain-independent artifacts" invariant for `Unit` specifically.
+
+- [ ] Migrate the chain-independent prototypes (`Multiply`,
+      `UnitHelper`, anything else with no chain-varying constructor
+      args) to the new layout straightforwardly.
+- [ ] Decide what to do about `Unit`. Options:
+      (a) keep per-chain `io/<chain>/Unit/<addr>.{txt,yml,json}` as
+          a documented exception in the design doc;
+      (b) factor `HUB_SOLID` out of the constructor (immutable
+          stored in a chain-local lookup, set later);
+      (c) deploy `Unit` only on chains where the hub already exists,
+          and predict per-chain.
+- [ ] Replace `verifyUnit.sh` usage with the shared `verify.sh`
+      once `verifiers.yml` covers Etherscan.
 
 ## unispring
 
@@ -89,13 +113,19 @@ stable through to mainnet rollout.
 
 ## Open questions
 
-- Is `lepton` actually the deployer of `ICoinage`, or is there a
-  separate `coinage` repo? Confirm before opening the lepton PR.
-- Should `verifiers.yml` ship with crucible or live per-repo? Default
-  assumption is crucible (chains rarely change), but per-repo
-  override may be useful.
-- For Sourcify clones: does Sourcify auto-detect EIP-1167 the way
+- **Chain-dependent constructor args.** `uniteum/Unit` takes a
+  chain-specific `HUB_SOLID`, breaking chain-independent artifacts.
+  Other consumers may have similar shapes — survey before finalizing
+  the doc's invariant.
+- **Forge-script vs bash for prototypes.** uniteum uses Solidity
+  `*.s.sol` scripts; lepton/locale/unispring use bash with `cast`.
+  Pick one canonical style or document that both are acceptable
+  (the difference is invisible once `<addr>.{txt,yml,json}` exist).
+- **Verifiers.yml location.** Ship with crucible (chains rarely
+  change) or live per-repo? Default crucible; per-repo override may
+  be useful.
+- **Sourcify clones.** Does Sourcify auto-detect EIP-1167 the way
   Etherscan does, or do we need to upload the proxy bytecode
   separately? Affects `verify.sh` clone branch.
-- `kind: presigned` for Nick on chains without him — defer or scope
-  in?
+- **`kind: presigned` for Nick** on chains without him — defer or
+  scope in?
