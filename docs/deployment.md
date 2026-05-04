@@ -158,17 +158,18 @@ root. The script defines a single recursive function:
 deploy(addr):
     if addr has code on chain:
         return
-    yml = lookup(addr)
-    if yml.deployer is not Nick:
-        deploy(yml.deployer)               # ensure prerequisite
+    yml = lookup(addr)                     # error if no io entry
+    deploy(yml.deployer)                   # recursively ensure prerequisite
     broadcast yml.contract/<addr>.txt to yml.deployer
 ```
 
 Top-level: index every `io/*/<addr>.yml` into an `addr → yml` map, then
 call `deploy(addr)` for every entry.
 
-Each branch terminates either at an already-deployed address (memoized
-via `cast code`) or at Nick's deployer (always present on every chain).
+Each branch terminates at an already-deployed address — memoized via
+`cast code`. Nick's deployer is not special-cased: it is treated as
+just another dependency that happens to already exist on every chain
+we target, so the recursion bottoms out there for prototypes.
 Memoization is implicit: once a contract is deployed in this run, the
 next `deploy(addr)` call for the same address sees its code and returns
 immediately. No cycle detection is needed — clones depend on prototypes
@@ -179,6 +180,21 @@ construction.
 partial-failure recovery is automatic: rerun and the script picks up
 where it left off. Re-deploying the full graph to a new chain is the
 same command — `deploy.sh <newchain>`.
+
+### Chains without Nick
+
+A handful of niche or new chains do not yet have Nick's deployer at
+`0x4e59b44...`. On such a chain, the recursion fails at the first
+prototype because Nick himself has no code and no io entry to bring
+him up. Bootstrapping him is straightforward but out of scope for the
+initial `deploy.sh`: the standard recipe is to fund the pre-funded EOA
+`0x3fab184622dc19b6109349b94811493bf2a45362` with a small amount of
+native gas and broadcast Arachnid's canonical pre-signed transaction.
+A future iteration may model this as another `io/` entry — perhaps
+`kind: presigned` with the raw transaction stored as the `.txt` file —
+so that Nick is bootstrapped by the same recursive deploy step as
+everything else. For now, operators should bootstrap Nick manually on
+such chains before running `deploy.sh`.
 
 ## Verification
 
