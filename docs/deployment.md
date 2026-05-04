@@ -255,15 +255,56 @@ to the prototype's verified source.
 
 ## Salt mining
 
-Salt mining is upstream of prediction: it produces the salt or variant
-values that get committed to `.env` and consumed by the per-contract
-prediction script. Mining is not part of normal deployment workflow —
-once a salt is committed, it is reused across all chains.
+Salt mining is upstream of prediction: it produces the salt (for
+prototypes) or variant (for clones) that gets committed to `.env`
+and consumed by the per-contract prediction script. Mining is not
+part of normal deployment workflow — once a salt is committed, it
+is reused across all chains.
 
-Shared helpers in `lib.sh` may include `mine_proto` and `mine_clone`
-wrappers that compute the right `initcode-hash` and `args-hash` inputs
-and shell out to `saltminer`, but the artifacts under `io/<contract>/`
-record only the resulting salt or variant, not the mining run.
+### Tool
+
+[saltminer](https://github.com/uniteum/saltminer) is the GPU-based
+miner. Inputs:
+
+| Flag              | Prototype                          | Clone                              |
+|-------------------|------------------------------------|------------------------------------|
+| `--deployer`      | Nick (`0x4e59b44...`)              | The Bitsy prototype address        |
+| `--initcode-hash` | `keccak(creationCode ‖ args)`      | `keccak(eip1167(prototype))`       |
+| `--args-hash`     | omitted                            | `keccak(abi.encode(makeArgs))`     |
+| `--mask`          | bits the address must match        | same                               |
+| `--match`         | target value under the mask        | same                               |
+
+For prototypes, saltminer varies the salt directly and reports the
+salt that produces a matching CREATE2 address. For clones, it varies
+a variant; the actual salt the factory uses is `args-hash XOR
+variant`, but the user-facing value committed to `.env` and passed
+to `make(args, variant)` is the variant.
+
+### The Bitsy clone convention
+
+Clones produced by Bitsy factories follow a fixed convention:
+
+```solidity
+function make(/* args */, uint256 variant) external returns (address);
+function made(/* args */, uint256 variant) external view returns (bool, address, bytes32);
+```
+
+Both functions compute `salt = keccak(abi.encode(args)) ^
+bytes32(variant)` internally, and `make()` calls
+`Clones.cloneDeterministic(proto, salt, 0)`. This shape is what
+allows saltminer to vary `variant` without re-encoding `args` on
+every iteration. Bitsy contracts that don't follow this convention
+cannot be vanity-mined with `saltminer`. See
+[crucible/.claude/skills/bitsify/SKILL.md](../.claude/skills/bitsify/SKILL.md)
+for the full pattern.
+
+### Helpers
+
+Shared helpers in `lib.sh` (`mine_proto` and `mine_clone`) compute
+the right `initcode-hash` and `args-hash` inputs from a contract
+name and a set of args, and shell out to `saltminer` with the
+caller's mask/match. Artifacts under `io/<contract>/` record only
+the resulting salt or variant, not the mining run.
 
 ## Migration: retiring `Proto.s.sol`
 

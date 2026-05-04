@@ -185,10 +185,12 @@ clone-of-clone or return an address that disagrees with `made()`.
 Add a view function that computes the deterministic address for a
 given set of parameters without deploying. It must use `proto` as
 both the implementation and the deployer so the prediction is the
-same whether `made()` is called on the prototype or any clone:
+same whether `made()` is called on the prototype or any clone.
+Always include a `variant` parameter — see
+[Variant and vanity mining](#variant-and-vanity-mining) below.
 
 ```solidity
-function made(/* parameters */)
+function made(/* parameters */, uint256 variant)
     public
     view
     returns (bool exists, address home, bytes32 salt)
@@ -196,8 +198,8 @@ function made(/* parameters */)
     // Validate inputs
     // ...
 
-    // Derive salt from ALL parameters that define the instance
-    salt = keccak256(abi.encode(param1, param2, ...));
+    // Derive salt: keccak of args, XOR'd with the user-supplied variant.
+    salt = keccak256(abi.encode(param1, param2, ...)) ^ bytes32(variant);
 
     // Predict the CREATE2 address — proto is BOTH the implementation
     // and the deployer, so the result is identical from any caller.
@@ -213,6 +215,11 @@ function made(/* parameters */)
 **Salt design rules:**
 - Include every parameter that makes this instance distinct.
 - Use `abi.encode` (not `abi.encodePacked`) to avoid collisions.
+- **Always XOR with `bytes32(variant)`** at the end. This lets users
+  vanity-mine clone addresses with `saltminer` while keeping `args`
+  constant — different variants with the same args yield different
+  clones, and a clone's address is fully determined by `(args,
+  variant)`.
 - If the creator's identity should differentiate instances (like
   Lepton), include `msg.sender` / maker address in the salt.
 - If instances should be globally unique by content (like Solid's
@@ -225,18 +232,18 @@ with the same parameters returns the same address. And it must
 satisfy the two invariants in [The proto rule](#the-proto-rule).
 
 ```solidity
-function make(/* parameters */)
+function make(/* parameters */, uint256 variant)
     external
     returns (IContractName instance)
 {
     // Required when make() can sensibly run on a clone: forward to
     // the prototype so address(this) in cloneDeterministic is proto.
     if (this != proto) {
-        instance = proto.make(/* parameters */);
+        instance = proto.make(/* parameters */, variant);
         return instance;
     }
 
-    (bool exists, address home, bytes32 salt) = made(/* parameters */);
+    (bool exists, address home, bytes32 salt) = made(/* parameters */, variant);
     instance = IContractName(home);
     if (!exists) {
         // proto is BOTH the implementation and the deployer — never
@@ -257,6 +264,40 @@ if (this != proto) revert Unauthorized();
 ```
 
 Either way, `make()` and `made()` must never disagree on `home`.
+
+### Variant and vanity mining
+
+The `variant` parameter is what makes Bitsy clones compatible with
+GPU-based vanity-address mining. Internally the salt is
+`keccak(args) ^ variant`, so the contract receives the args (which
+must be valid and consistent with whatever `zzInit` does) and a
+freely chosen `uint256` that just steers the address.
+
+The standard mining workflow uses `saltminer`:
+
+```bash
+saltminer \
+  --deployer      <prototype address>    # the factory, not Nick
+  --initcode-hash <keccak of EIP-1167 stub keyed to prototype>
+  --args-hash     <keccak(abi.encode(args))>
+  --mask          0xffff...0000           # bits the address must match
+  --match         0xfeed...0000           # target value under the mask
+```
+
+`saltminer` varies the variant, computes the resulting clone
+address, and exits when it finds one matching `(addr & mask) ==
+match`. The variant is then committed as a deployment input and
+passed verbatim to `make()` whenever the clone is deployed on a new
+chain — every chain produces the same clone address because every
+chain runs the same XOR over the same inputs.
+
+For prototype contracts deployed via Nick rather than via a Bitsy
+factory, the caller mines the CREATE2 salt directly — `variant`
+applies only to clones produced through `make()`.
+
+See [crucible/docs/deployment.md](../../../docs/deployment.md) for
+how mined variants are committed alongside the rest of the
+deployment artifacts and how `deploy.sh` consumes them.
 
 ## Step 5: Strip prototype-level access control
 
