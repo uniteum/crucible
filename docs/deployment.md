@@ -269,14 +269,14 @@ miner. Inputs:
 | Flag              | Prototype                          | Clone                              |
 |-------------------|------------------------------------|------------------------------------|
 | `--deployer`      | Nick (`0x4e59b44...`)              | The Bitsy prototype address        |
-| `--initcode-hash` | `keccak(creationCode ‖ args)`      | `keccak(eip1167(prototype))`       |
-| `--args-hash`     | omitted                            | `keccak(abi.encode(makeArgs))`     |
+| `--initcodehash`  | `keccak(creationCode ‖ args)`      | `keccak(eip1167(prototype))`       |
+| `--argshash`      | omitted                            | `keccak(abi.encode(makeArgs))`     |
 | `--mask`          | bits the address must match        | same                               |
-| `--match`         | target value under the mask        | same                               |
+| `--target`        | target value under the mask        | same                               |
 
 For prototypes, saltminer varies the salt directly and reports the
 salt that produces a matching CREATE2 address. For clones, it varies
-a variant; the actual salt the factory uses is `args-hash XOR
+a variant; the actual salt the factory uses is `argshash XOR
 variant`, but the user-facing value committed to `.env` and passed
 to `make(args, variant)` is the variant.
 

@@ -277,16 +277,16 @@ The standard mining workflow uses `saltminer`:
 
 ```bash
 saltminer \
-  --deployer      <prototype address>    # the factory, not Nick
-  --initcode-hash <keccak of EIP-1167 stub keyed to prototype>
-  --args-hash     <keccak(abi.encode(args))>
-  --mask          0xffff...0000           # bits the address must match
-  --match         0xfeed...0000           # target value under the mask
+  --deployer     <prototype address>    # the factory, not Nick
+  --initcodehash <keccak of EIP-1167 stub keyed to prototype>
+  --argshash     <keccak(abi.encode(args))>
+  --mask         0xffff...0000           # bits the address must match
+  --target       0xfeed...0000           # target value under the mask
 ```
 
 `saltminer` varies the variant, computes the resulting clone
 address, and exits when it finds one matching `(addr & mask) ==
-match`. The variant is then committed as a deployment input and
+target`. The variant is then committed as a deployment input and
 passed verbatim to `make()` whenever the clone is deployed on a new
 chain — every chain produces the same clone address because every
 chain runs the same XOR over the same inputs.
