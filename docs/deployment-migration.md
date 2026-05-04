@@ -35,11 +35,21 @@ so clone addresses are the same on every chain even though their
 `value()` is chain-local. The Mimicry path therefore stays fully
 chain-independent.
 
-**Cheap follow-on:** `Manifold` is a sibling of Mimicry that takes
-only `Fountain` in its constructor, so once Fountain is migrated the
-Manifold prototype is essentially free. The hub-and-spoke deployments
-that Manifold *enables* (NeutrinoChannelProto, NeutrinoSourceProto,
-hub token, spoke clones) are deferred — they pull in uniteum.
+**Cheap follow-ons** (none of these pull in uniteum — verified by
+reading their imports and constructors):
+
+- `Manifold` — takes only `Fountain`. Once Fountain is migrated this
+  is essentially free.
+- `NeutrinoChannel` (and its proto factory) — `constructor()` with no
+  args; depends only on `clones`, `icoinage`, `ierc20`.
+- `NeutrinoSource` — `constructor(Manifold, NeutrinoChannel,
+  ICoinage)`. All three are already in scope (Manifold via Fountain,
+  NeutrinoChannel via itself, ICoinage = Lepton).
+
+The "canonically Uniteum 1" phrasing in unispring's CLAUDE.md
+describes a *runtime* hub-pairing convention; nothing at deploy time
+forces a Uniteum-1 hub. Fair-launch tokens minted via NeutrinoSource
+can pair against any ERC-20.
 
 **Deferred:**
 
@@ -50,9 +60,9 @@ hub token, spoke clones) are deferred — they pull in uniteum.
   on the Mimicry path.
 - **locale extras**: `ImmutableUintToAddress`, `ImmutableUintToUint`
   — not consumed by Mimicry.
-- **unispring extras**: `NeutrinoChannelProto`, `NeutrinoSourceProto`,
-  hub/spoke deployment, mimic clones (the per-token `1xUSDC` etc. are
-  runtime usage, separate from prototype migration).
+- **unispring runtime usage**: actual hub-token mining via
+  NeutrinoSource, spoke deployments, per-mimic clones (`1xUSDC` etc.).
+  These are uses of the factories, not migrations of them.
 
 Submodule libraries that ship only Solidity source (`clones`,
 `context`, `erc20`, `icoinage`, `ierc20`, `ilookup`, `iuniswap`,
@@ -140,17 +150,22 @@ In-scope: two locale clones, then `Fountain`, then `Mimicry`.
       AddressLookup → PoolManagerLookup clone, StringLookup →
       NativeSymbolLookup clone, Lepton, Fountain, Mimicry.
 
-Cheap follow-on (do if it falls out for free):
+Cheap follow-ons (do if they fall out for free — none pull in
+uniteum):
 
-- [ ] Migrate `Manifold.sh` to `io/Manifold/Manifold.sh` (Nick + salt
-      0x0, constructor takes only `Fountain`).
+- [ ] Migrate `Manifold.sh` to `io/Manifold/Manifold.sh` (Nick +
+      salt 0x0, constructor takes only `Fountain`).
+- [ ] Add `io/NeutrinoChannelProto/NeutrinoChannelProto.sh` (Nick,
+      no-arg constructor).
+- [ ] Add `io/NeutrinoSourceProto/NeutrinoSourceProto.sh` (Nick,
+      constructor takes `Manifold`, `NeutrinoChannel`, `ICoinage`).
 
-Deferred within unispring:
+Deferred within unispring (runtime usage, not factory migration):
 
 - `mine-hub-salt.sh`, `check-hub-salt.sh`, `mine-icoinage-salt.sh`
-  — keep as-is until we tackle the hub/spoke deployments.
-- `Fountain1`, hub clones, NeutrinoChannelProto, NeutrinoSourceProto,
-  per-mimic-token clones.
+  — these mine specific hub/spoke deployments, not factory protos.
+- `Fountain1`, hub-token clones, per-mimic-token clones (`1xUSDC`
+  etc.).
 
 ## Open questions
 
