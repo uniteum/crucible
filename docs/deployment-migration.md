@@ -8,17 +8,36 @@
 
 ## Scope
 
-Five repos in dependency order:
+Focus: **Mimicry** and its dependency closure. Mimicry's constructor
+is `Mimicry(Fountain, ICoinage, NativeSymbolLookup)`, so the
+in-scope prototypes are:
 
 1. **crucible** — provides the new shared scripts.
-2. **lepton** — deploys the Lepton/ICoinage prototype that all
-   subsequent token mints route through.
-3. **uniteum** — deploys the algebraic-protocol primitives, including
-   the Uniteum 1 hub token.
-4. **locale** — deploys per-chain reference contracts
-   (`NativeSymbolLookup`, etc.).
-5. **unispring** — consumer of all of the above; deploys the Manifold
-   and Mimicry families plus their clones.
+2. **lepton** — `Lepton` (== `ICoinage` at `0x1EB890...`).
+3. **locale** — `StringLookup` (the prototype `NativeSymbolLookup`
+   clones from). `AddressLookup` is included too since Mimicry's
+   `mimic(...)` accepts an `IAddressLookup` as the original-token
+   reference for cross-chain mirrors.
+4. **unispring** — `Fountain`, then `Mimicry`.
+
+**Cheap follow-on:** `Manifold` is a sibling of Mimicry that takes
+only `Fountain` in its constructor, so once Fountain is migrated the
+Manifold prototype is essentially free. The hub-and-spoke deployments
+that Manifold *enables* (NeutrinoChannelProto, NeutrinoSourceProto,
+hub token, spoke clones) are deferred — they pull in uniteum.
+
+**Deferred:**
+
+- **uniteum** entirely — the per-chain `HUB_SOLID` constructor arg
+  for `Unit` breaks the chain-independence invariant and needs a
+  separate design pass.
+- **lepton extras**: `FFF`, `OOO`, `pi` — other coinage variants not
+  on the Mimicry path.
+- **locale extras**: `ImmutableUintToAddress`, `ImmutableUintToUint`
+  — not consumed by Mimicry.
+- **unispring extras**: `NeutrinoChannelProto`, `NeutrinoSourceProto`,
+  hub/spoke deployment, mimic clones (the per-token `1xUSDC` etc. are
+  runtime usage, separate from prototype migration).
 
 Submodule libraries that ship only Solidity source (`clones`,
 `context`, `erc20`, `icoinage`, `ierc20`, `ilookup`, `iuniswap`,
@@ -52,12 +71,15 @@ Confirmed: Lepton is the prototype at
 `ICoinage` in unispring's env). Deployed via Nick at salt
 `0x000000000000000000000000000000000000000000000000000000002b3fbfee`.
 
-- [ ] Migrate `Lepton.sh`, `FFF.sh`, `OOO.sh`, `pi.sh` to
-      `io/<contract>/<contract>.sh` calling `proto_predict`.
+- [ ] Migrate `Lepton.sh` to `io/Lepton/Lepton.sh` calling
+      `proto_predict`.
 - [ ] Add `<addr>.yml` alongside existing `<addr>.txt` and
       `<addr>.json` artifacts (yml is the new file).
 - [ ] Smoke-test `bash lib/crucible/script/deploy.sh sepolia`
-      reproduces the existing mainnet addresses.
+      reproduces the existing mainnet address.
+
+`FFF`, `OOO`, `pi` are deferred — same pattern as Lepton, can follow
+later without changing scope.
 
 ## locale
 
@@ -68,59 +90,45 @@ Nick. `NativeSymbolLookup` (`0x6a50503D...`) is a **clone** of locale's
 which describes it as "chain-local IStringLookup"), not a separate
 contract — so locale covers it.
 
-- [ ] Migrate `AddressLookup.sh`, `ImmutableUintToAddress.sh`,
-      `ImmutableUintToUint.sh`, `StringLookup.sh` to
-      `io/<contract>/<contract>.sh` calling `proto_predict`.
-- [ ] Decide where the `NativeSymbolLookup` clone lives — locale (as
-      a sample/seed clone) or unispring (as one of its required
-      runtime deps). Probably locale.
+- [ ] Migrate `StringLookup.sh` to `io/StringLookup/StringLookup.sh`
+      (required for `NativeSymbolLookup`).
+- [ ] Migrate `AddressLookup.sh` to `io/AddressLookup/AddressLookup.sh`
+      (used by Mimicry's cross-chain mirror pattern).
+- [ ] Decide where the `NativeSymbolLookup` clone lives — locale
+      (as a sample/seed clone) or unispring (as a runtime dep).
+      Probably locale.
 
-## uniteum
-
-**Divergent layout — needs reconciling with the design.** uniteum
-currently uses `forge script` Solidity scripts (`Unit.s.sol`,
-`Multiply.s.sol`, `UnitHelper.s.sol`) and a per-chain `io/` layout
-(`io/1/`, `io/11155111/`) because `Unit`'s constructor takes a
-chain-specific `HUB_SOLID` address. This breaks the
-"chain-independent artifacts" invariant for `Unit` specifically.
-
-- [ ] Migrate the chain-independent prototypes (`Multiply`,
-      `UnitHelper`, anything else with no chain-varying constructor
-      args) to the new layout straightforwardly.
-- [ ] Decide what to do about `Unit`. Options:
-      (a) keep per-chain `io/<chain>/Unit/<addr>.{txt,yml,json}` as
-          a documented exception in the design doc;
-      (b) factor `HUB_SOLID` out of the constructor (immutable
-          stored in a chain-local lookup, set later);
-      (c) deploy `Unit` only on chains where the hub already exists,
-          and predict per-chain.
-- [ ] Replace `verifyUnit.sh` usage with the shared `verify.sh`
-      once `verifiers.yml` covers Etherscan.
+`ImmutableUintToAddress` and `ImmutableUintToUint` are deferred.
 
 ## unispring
 
-- [ ] Migrate prototypes: Manifold, Mimicry, Fountain,
-      NeutrinoChannelProto, NeutrinoSourceProto, ManifoldProto.
-- [ ] Migrate clones: `Fountain1`, the hub spoke, channel and source
-      clones, mimic tokens.
-- [ ] Move `mine-*-salt.sh` logic into `lib.sh` helpers; keep mined
-      values in `.env`.
-- [ ] Move `check-hub-salt.sh` logic into a `lib.sh` helper invoked
-      by the relevant `<contract>.sh`.
-- [ ] Delete legacy [`script/*.sh`](../../unispring/script/) once
-      every artifact is committed.
-- [ ] Smoke-test full graph deploy on a fresh test chain.
+In-scope prototypes: **Fountain** and **Mimicry**.
+
+- [ ] Migrate `Fountain.sh` to `io/Fountain/Fountain.sh` calling
+      `proto_predict` (Nick + mined salt
+      `0x...01c8688910`).
+- [ ] Migrate `Mimicry.sh` to `io/Mimicry/Mimicry.sh` calling
+      `proto_predict` (Nick + mined salt
+      `0x...bdc7f617`, constructor takes `Fountain`,
+      `ICoinage`, `NativeSymbolLookup`).
+- [ ] Smoke-test `bash lib/crucible/script/deploy.sh sepolia`
+      reproduces the existing mainnet addresses end-to-end (Lepton →
+      StringLookup clone → Fountain → Mimicry).
+
+Cheap follow-on (do if it falls out for free):
+
+- [ ] Migrate `Manifold.sh` to `io/Manifold/Manifold.sh` (Nick + salt
+      0x0, constructor takes only `Fountain`).
+
+Deferred within unispring:
+
+- `mine-hub-salt.sh`, `check-hub-salt.sh`, `mine-icoinage-salt.sh`
+  — keep as-is until we tackle the hub/spoke deployments.
+- `Fountain1`, hub clones, NeutrinoChannelProto, NeutrinoSourceProto,
+  per-mimic-token clones.
 
 ## Open questions
 
-- **Chain-dependent constructor args.** `uniteum/Unit` takes a
-  chain-specific `HUB_SOLID`, breaking chain-independent artifacts.
-  Other consumers may have similar shapes — survey before finalizing
-  the doc's invariant.
-- **Forge-script vs bash for prototypes.** uniteum uses Solidity
-  `*.s.sol` scripts; lepton/locale/unispring use bash with `cast`.
-  Pick one canonical style or document that both are acceptable
-  (the difference is invisible once `<addr>.{txt,yml,json}` exist).
 - **Verifiers.yml location.** Ship with crucible (chains rarely
   change) or live per-repo? Default crucible; per-repo override may
   be useful.
@@ -129,3 +137,16 @@ chain-specific `HUB_SOLID` address. This breaks the
   separately? Affects `verify.sh` clone branch.
 - **`kind: presigned` for Nick** on chains without him — defer or
   scope in?
+
+## Out-of-scope, parked for later
+
+Tracked here so they don't get lost when we revisit:
+
+- **uniteum's chain-dependent constructor args.** `Unit` takes a
+  chain-specific `HUB_SOLID`. Resolving this is a design problem,
+  not just a refactor — defer until the Mimicry path is shipped.
+  Possible directions: per-chain `io/<chain>/Unit/...` exception,
+  factor `HUB_SOLID` out of the constructor, or predict per-chain.
+- **Forge-script vs bash style.** uniteum uses Solidity `*.s.sol`;
+  lepton/locale/unispring use bash with `cast`. Pick one canonical
+  style or document both as acceptable.
