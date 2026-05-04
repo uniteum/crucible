@@ -60,7 +60,7 @@ into:
 ## Layout rule
 
 Place the factory methods (`made`, `make`, `zzInit`) **at the end**
-of the contract, after the original business logic. The PROTO
+of the contract, after the original business logic. The proto
 immutable goes at the top with other state declarations. This keeps
 the contract's core logic front and center, with the cloning
 machinery grouped together at the bottom — matching the Etherscan
@@ -68,7 +68,7 @@ read experience where users see business functions first.
 
 ```
 contract Foo {
-    // — immutables (including PROTO) —
+    // — immutables (including proto) —
     // — state variables —
     // — errors, events, modifiers —
     // — constructor —
@@ -89,7 +89,7 @@ role. Convention from existing Bitsy contracts:
 ```solidity
 // The prototype instance. On clones, this points back to the
 // original deployment.
-ContractName public immutable PROTO = address(this);
+ContractName public immutable proto = address(this);
 // or, if the contract has a domain-specific name:
 // ISolid public immutable NOTHING = this;
 // Liquid public immutable HUB = this;
@@ -122,14 +122,14 @@ Etherscan's function list, keeping it out of users' way.
 /// @notice Initializer called by the prototype on a freshly
 ///         deployed clone. Reverts if called by anyone else.
 function zzInit(/* former constructor params */) public {
-    if (msg.sender != PROTO) revert Unauthorized();
+    if (msg.sender != proto) revert Unauthorized();
     // ... initialization logic from the old constructor ...
 }
 ```
 
 **Guard pattern options** (pick one):
 
-- **`msg.sender` check** (preferred): `if (msg.sender != PROTO) revert Unauthorized();`
+- **`msg.sender` check** (preferred): `if (msg.sender != proto) revert Unauthorized();`
 - **State check** (when the prototype can't call directly):
   `if (bytes(_symbol).length != 0) revert AlreadyInitialized();`
 
@@ -180,7 +180,7 @@ function made(/* parameters */)
 
     // Predict the CREATE2 address
     home = Clones.predictDeterministicAddress(
-        address(PROTO), salt, address(PROTO)
+        address(proto), salt, address(proto)
     );
 
     // Check if already deployed
@@ -206,16 +206,16 @@ function make(/* parameters */)
     external
     returns (IContractName instance)
 {
-    if (this != PROTO) {
+    if (this != proto) {
         // Forward to prototype if called on a clone
-        instance = PROTO.make(/* parameters */);
+        instance = proto.make(/* parameters */);
     } else {
         (bool exists, address home, bytes32 salt) =
             made(/* parameters */);
         instance = IContractName(home);
         if (!exists) {
             home = Clones.cloneDeterministic(
-                address(PROTO), salt, 0
+                address(proto), salt, 0
             );
             ContractName(home).zzInit(/* parameters */);
         }
@@ -223,7 +223,7 @@ function make(/* parameters */)
 }
 ```
 
-**Clone forwarding**: The `if (this != PROTO)` block lets users
+**Clone forwarding**: The `if (this != proto)` block lets users
 call `make()` on any clone and have it forwarded to the prototype.
 This is convenient but optional.
 
@@ -249,7 +249,7 @@ from calling internal prototype/clone coordination functions. Pattern:
 
 ```solidity
 modifier onlyClone() {
-    if (msg.sender != address(PROTO)) {
+    if (msg.sender != address(proto)) {
         // Verify caller is a valid clone
         (, address expected,) = made(/* caller's params */);
         if (msg.sender != expected) revert Unauthorized();
