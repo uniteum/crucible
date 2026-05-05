@@ -56,19 +56,28 @@ proto_predict() {
     local compilerversion
     compilerversion="v$(forge inspect "$contract" metadata | jq -r .compiler.version)"
 
+    # Capture the SPDX license identifier from the source file's first line.
+    # Same reasoning: insulate verify.sh from later edits to the source.
+    local license
+    license=$(grep -m1 "SPDX-License-Identifier:" "src/$contract.sol" \
+              | sed 's|.*SPDX-License-Identifier: *||' \
+              | tr -d '\r')
+    : "${license:=None}"
+
     {
         echo "contract: $contract"
         echo "kind: prototype"
         echo "deployer: \"$NICK\""
         echo "initcodehash: \"$(cast keccak "$initcode")\""
         echo "salt: \"$salt\""
+        echo "compilerversion: \"$compilerversion\""
+        echo "license: \"$license\""
         if [[ -n "${mask:-}" ]]; then
             echo "mask: \"$mask\""
         fi
         if [[ -n "${target:-}" ]]; then
             echo "target: \"$target\""
         fi
-        echo "compilerversion: \"$compilerversion\""
         echo "home: \"$addr\""
     } > "$dir/$addr.yml"
 

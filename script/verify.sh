@@ -62,6 +62,27 @@ if [[ -z "$compilerversion" || "$compilerversion" == "null" ]]; then
     exit 1
 fi
 
+# Map SPDX identifier to Etherscan's licenseType integer. Anything we
+# don't recognize (custom licenses like LicenseRef-*) is submitted as
+# "None" (1) — Etherscan accepts that for any source.
+license=$(yq -r .license "$yml")
+case "$license" in
+    Unlicense)    license_id=2 ;;
+    MIT)          license_id=3 ;;
+    GPL-2.0*)     license_id=4 ;;
+    GPL-3.0*)     license_id=5 ;;
+    LGPL-2.1*)    license_id=6 ;;
+    LGPL-3.0*)    license_id=7 ;;
+    BSD-2-Clause) license_id=8 ;;
+    BSD-3-Clause) license_id=9 ;;
+    MPL-2.0)      license_id=10 ;;
+    OSL-3.0)      license_id=11 ;;
+    Apache-2.0)   license_id=12 ;;
+    AGPL-3.0*)    license_id=13 ;;
+    BSL-1.1)      license_id=14 ;;
+    *)            license_id=1 ;;
+esac
+
 if [[ ! -f "$json" ]]; then
     echo "ERROR: no standard-input JSON at $json" >&2
     exit 1
@@ -80,6 +101,7 @@ response=$(curl -sS -X POST "https://api.etherscan.io/v2/api?chainid=$chain" \
     --data-urlencode "compilerversion=$compilerversion" \
     --data-urlencode "codeformat=solidity-standard-json-input" \
     --data-urlencode "constructorArguements=$constructor_args" \
+    --data-urlencode "licenseType=$license_id" \
     --data-urlencode "sourceCode@$json")
 
 status=$(echo "$response" | jq -r .status)
