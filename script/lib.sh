@@ -54,14 +54,14 @@ proto_predict() {
     {
         echo "contract: $contract"
         echo "kind: prototype"
-        echo "deployer: $NICK"
-        echo "salt: $salt"
-        echo "initcodeHash: $(cast keccak "$initcode")"
+        echo "deployer: \"$NICK\""
+        echo "initcodeHash: \"$(cast keccak "$initcode")\""
+        echo "salt: \"$salt\""
         if [[ -n "${mask:-}" ]]; then
-            echo "mask: $mask"
+            echo "mask: \"$mask\""
         fi
         if [[ -n "${target:-}" ]]; then
-            echo "target: $target"
+            echo "target: \"$target\""
         fi
     } > "$dir/$addr.yml"
 

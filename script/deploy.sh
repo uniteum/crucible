@@ -31,7 +31,10 @@ if [[ ${#YML_PATH[@]} -eq 0 ]]; then
 fi
 
 yml_field() {
-    awk -v key="$2:" '$1==key {print $2; exit}' "$1"
+    local raw
+    raw=$(awk -v key="$2:" '$1==key {print $2; exit}' "$1")
+    raw=${raw#\"}; raw=${raw%\"}
+    echo "$raw"
 }
 
 deploy() {
