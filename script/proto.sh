@@ -51,12 +51,18 @@ proto_predict() {
     input=$(cast concat-hex "$salt" "$initcode")
     printf '%s' "$input" > "$dir/$addr.txt"
 
+    # Capture the compiler version that produced this initcode so verify.sh
+    # can submit it to Etherscan even if foundry.toml later changes solc.
+    local compilerversion
+    compilerversion="v$(forge inspect "$contract" metadata | jq -r .compiler.version)"
+
     {
         echo "contract: $contract"
         echo "kind: prototype"
         echo "deployer: \"$NICK\""
-        echo "initcodeHash: \"$(cast keccak "$initcode")\""
+        echo "initcodehash: \"$(cast keccak "$initcode")\""
         echo "salt: \"$salt\""
+        echo "compilerversion: \"$compilerversion\""
         if [[ -n "${mask:-}" ]]; then
             echo "mask: \"$mask\""
         fi
