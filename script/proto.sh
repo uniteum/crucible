@@ -30,13 +30,15 @@ proto_predict() {
     shift 2
 
     local bytecode initcode
+    local -a constructor_args=()
     bytecode=$(forge inspect "$contract" bytecode)
     if [[ $# -gt 0 ]]; then
         local sig="$1"
         shift
-        local args
-        args=$(cast abi-encode "$sig" "$@")
-        initcode=$(cast concat-hex "$bytecode" "$args")
+        constructor_args=("$@")
+        local encoded
+        encoded=$(cast abi-encode "$sig" "${constructor_args[@]}")
+        initcode=$(cast concat-hex "$bytecode" "$encoded")
     else
         initcode="$bytecode"
     fi
@@ -77,6 +79,12 @@ proto_predict() {
         fi
         if [[ -n "${target:-}" ]]; then
             echo "target: \"$target\""
+        fi
+        if [[ ${#constructor_args[@]} -gt 0 ]]; then
+            echo "args:"
+            for arg in "${constructor_args[@]}"; do
+                echo "  - \"$arg\""
+            done
         fi
         echo "home: \"$addr\""
     } > "$dir/$addr.yml"

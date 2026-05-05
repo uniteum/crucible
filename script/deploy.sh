@@ -95,9 +95,23 @@ yml_field() {
     echo "$raw"
 }
 
-# Recursive: ensure addr has code on $chain, deploying it via its deployer if not.
+# Memoize addresses we've already visited so the same contract isn't
+# re-checked or re-printed during a single run (especially in dry-run,
+# where cast code keeps reporting empty since nothing is broadcast).
+declare -A VISITED
+
+# Recursive: ensure addr has code on $chain. Walks both:
+#   - the deployer chain (who creates this contract)
+#   - any constructor-arg addresses (runtime references the contract
+#     will need to function), if they have ymls of their own
+#
+# Constructor args without a yml entry (external addresses like Uniswap
+# V4 PoolManagers, USDC, etc.) are silently skipped.
 deploy() {
     local addr="$1"
+    [[ -n "${VISITED[$addr]:-}" ]] && return
+    VISITED[$addr]=1
+
     local code
     code=$(cast code "$addr" --rpc-url "$chain")
     if [[ "$code" != "0x" ]]; then
@@ -113,8 +127,21 @@ deploy() {
 
     local deployer
     deployer=$(cast --to-checksum-address "$(yml_field "$yml" deployer)")
-
     deploy "$deployer"
+
+    # Walk constructor-arg addresses captured under `args:` in the yml.
+    # Each entry is tested for being a valid address; if so and we have
+    # a yml for it, recurse so its dep chain is also satisfied.
+    if yq -e .args "$yml" >/dev/null 2>&1; then
+        while IFS= read -r arg; do
+            [[ -z "$arg" || "$arg" == "null" ]] && continue
+            local arg_addr
+            arg_addr=$(cast --to-checksum-address "$arg" 2>/dev/null) || continue
+            if [[ -n "${YML_PATH[$arg_addr]:-}" ]]; then
+                deploy "$arg_addr"
+            fi
+        done < <(yq -r '.args[]' "$yml" 2>/dev/null)
+    fi
 
     local contract input
     contract=$(yml_field "$yml" contract)
