@@ -71,8 +71,7 @@ fi
 constructor_args=${constructor_args#0x}
 
 echo "Submitting $contract → $target on chain $chain (compiler $compilerversion)..."
-response=$(curl -sS -X POST "https://api.etherscan.io/v2/api" \
-    --data-urlencode "chainid=$chain" \
+response=$(curl -sS -X POST "https://api.etherscan.io/v2/api?chainid=$chain" \
     --data-urlencode "module=contract" \
     --data-urlencode "action=verifysourcecode" \
     --data-urlencode "apikey=$ETHERSCAN_API_KEY" \
