@@ -3,11 +3,20 @@
 # entry on a given chain, recursively ensuring its deployer chain first.
 #
 # Usage (from a consumer repo's root):
-#   bash lib/crucible/script/deploy.sh [-b|--broadcast] <chain> <addr>
+#   bash lib/crucible/script/deploy.sh [-b|--broadcast] [<wallet-flags>] <chain> <addr>
 #
 # Default is dry-run: walks the dep chain and prints what would be
 # deployed in order, without sending any transactions. Pass -b or
-# --broadcast to actually send; tx_key must then be set in the env.
+# --broadcast to actually send.
+#
+# Wallet selection (for broadcast mode):
+#   - default: --private-key "$tx_key" (raw key from env)
+#   - override: pass any cast wallet flag(s) before the positional args.
+#     e.g. --account dev    (foundry keystore alias)
+#          --keystore <path>
+#          --ledger / --trezor / --frame
+#          --mnemonic "<phrase>" --mnemonic-index 3
+#   When any wallet flag is passed, $tx_key is ignored.
 #
 # <chain> is a key in foundry.toml's [rpc_endpoints] or an RPC URL.
 # <addr> is the target contract address; its yml must exist somewhere
@@ -22,24 +31,43 @@
 set -euo pipefail
 
 # Parse flags. Default is dry-run; -b/--broadcast actually sends txs.
+# Any other flag is treated as a cast wallet flag and forwarded to cast send.
 broadcast=0
+wallet_args=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -b|--broadcast) broadcast=1; shift ;;
         --) shift; break ;;
-        -*) echo "unknown flag: $1" >&2; exit 2 ;;
+        -*)
+            # Pass-through: assume "--flag value" unless next arg is another flag
+            # or there is no next arg (e.g. --ledger is a no-arg flag).
+            if [[ $# -gt 1 && "$2" != -* ]]; then
+                wallet_args+=("$1" "$2"); shift 2
+            else
+                wallet_args+=("$1"); shift
+            fi
+            ;;
         *) break ;;
     esac
 done
 
 if [[ $# -ne 2 ]]; then
-    echo "Usage: $0 [-b|--broadcast] <chain> <addr>" >&2
+    echo "Usage: $0 [-b|--broadcast] [<wallet-flags>] <chain> <addr>" >&2
     exit 2
 fi
 
 chain="$1"
 target=$(cast --to-checksum-address "$2")
 : "${tx_key:=}"
+
+# In broadcast mode, fall back to tx_key if no wallet flags were given.
+if [[ "$broadcast" -eq 1 && ${#wallet_args[@]} -eq 0 ]]; then
+    if [[ -z "$tx_key" ]]; then
+        echo "ERROR: no wallet specified; set tx_key or pass --account/--private-key/--ledger/etc." >&2
+        exit 1
+    fi
+    wallet_args=(--private-key "$tx_key")
+fi
 
 # Build addr → yml-path map by walking io/*/<addr>.yml in this repo and
 # in every sibling repo's io/. The yml's `deployer` field identifies what
@@ -97,13 +125,8 @@ deploy() {
         return
     fi
 
-    if [[ -z "$tx_key" ]]; then
-        echo "ERROR: tx_key not set; cannot broadcast $addr via $deployer" >&2
-        return 1
-    fi
-
     echo "Deploying $contract → $addr via $deployer on $chain..."
-    cast send "$deployer" "$input" --rpc-url "$chain" --private-key "$tx_key"
+    cast send "$deployer" "$input" --rpc-url "$chain" "${wallet_args[@]}"
 }
 
 deploy "$target"
