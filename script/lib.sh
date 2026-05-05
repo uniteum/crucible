@@ -57,6 +57,12 @@ proto_predict() {
         echo "deployer: $NICK"
         echo "salt: $salt"
         echo "initcodeHash: $(cast keccak "$initcode")"
+        if [[ -n "${mask:-}" ]]; then
+            echo "mask: $mask"
+        fi
+        if [[ -n "${target:-}" ]]; then
+            echo "target: $target"
+        fi
     } > "$dir/$addr.yml"
 
     forge verify-contract "$addr" "$contract" \
