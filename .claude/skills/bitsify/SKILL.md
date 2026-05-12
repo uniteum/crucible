@@ -65,6 +65,110 @@ into:
 3. **Design changes** (oracle replacement, architecture shifts — flag
    for the user, do not attempt without discussion)
 
+## Step 0a: Already a Bitsy contract? (migration path)
+
+If the input already hand-rolls the Bitsy factory machinery — that is,
+the contract has all of:
+
+- `address public immutable proto = address(this);` (or a domain-named
+  equivalent like `HUB`/`NOTHING`/`MOB`)
+- a `make(...)` factory function with an `address(this) == proto`
+  forward branch
+- a `made(...)` view predictor
+- a `zzInit(...)` initializer with a `msg.sender != proto` check
+- an `error Unauthorized();` declaration
+
+then this is a **migration**, not a fresh conversion. The
+prototype/access/mutability cleanup (Steps 4–7) was done when the
+contract was first bitsified; only the factory boilerplate changes.
+
+The mechanical migration steps:
+
+1. **Inherit `Prototype`.** Add the import and update the contract
+   header:
+
+   ```solidity
+   import {Prototype} from "proto/Prototype.sol";
+
+   contract Foo is Prototype, /* other bases */ { ... }
+   ```
+
+2. **Delete the redeclared `proto` immutable.** It's inherited. If
+   the contract used a domain-named alias (`HUB = this`, etc.), either
+   keep the alias as a thin wrapper view (`function HUB() external view
+   returns (Foo) { return Foo(proto); }`) or do a project-wide rename
+   to `proto`. Pick one and apply consistently.
+
+3. **Delete `error Unauthorized();`.** It's inherited from `IPrototype`.
+   Watch for collisions with other interfaces (e.g. `ICoinage` used
+   to declare its own `Unauthorized` — that has to go too if the
+   contract inherits both).
+
+4. **Rewrite `zzInit` to override the inherited bytes-form.** The
+   typed `zzInit(typed args)` becomes:
+
+   ```solidity
+   function zzInit(bytes calldata args, uint256 /*variant*/)
+       public override onlyProto
+   {
+       (Type1 p1, Type2 p2, ...) = abi.decode(args, (Type1, Type2, ...));
+       // existing init body, unchanged
+   }
+   ```
+
+   Replace any `if (msg.sender != proto) revert Unauthorized();` with
+   the `onlyProto` modifier — same guard, less boilerplate.
+
+5. **Rewrite `make`/`made` as thin typed wrappers over the inherited
+   bytes overloads** (see [Step 3](#step-3-optional-typed-makemade-wrappers)).
+   Move all argument validation into a new `encode()` pure function.
+   Delete the hand-rolled `address(this) == proto` forward — the
+   inherited `Prototype.make` already handles it. If the contract has
+   no typed surface worth preserving, you can drop the wrappers entirely
+   and let callers use the inherited `make(bytes,uint256)` directly.
+
+6. **Update tests.** Any test that called `zzInit(typed_args)` now
+   calls `zzInit(abi.encode(typed_args), variant)`. Any test asserting
+   `Foo.Unauthorized.selector` should switch to
+   `IPrototype.Unauthorized.selector` (same selector value, but the
+   `Foo.Unauthorized` reference no longer compiles).
+
+### Salt-formula change
+
+The legacy hand-rolled `made` computed:
+
+```solidity
+salt = keccak256(abi.encode(typed_args)) ^ bytes32(variant);
+```
+
+The inherited `Prototype.made(bytes,uint256)` computes:
+
+```solidity
+salt = keccak256(abi.encode(args_bytes)) ^ bytes32(variant);
+// where args_bytes = abi.encode(typed_args)
+```
+
+The outer `abi.encode(args_bytes)` is Solidity's natural encoding of
+a `bytes calldata` argument (offset ‖ length ‖ padded data) — so the
+new hash differs from the legacy hash for the same typed inputs.
+
+**Consequences:**
+
+- **The prototype's own address changes** if anything in its bytecode
+  shifts (which it will: new imports, new method table, possibly new
+  compiler version). Existing on-chain prototypes are unaffected; new
+  deployments will use a different address.
+- **Every previously-mined clone variant becomes invalid.** Any
+  `io/*/<addr>.{txt,yml}` artifacts for clones that haven't been
+  broadcast yet need re-mining. Already-broadcast clones are pinned to
+  their existing addresses — they don't move; only future clones
+  computed offline will land somewhere different.
+
+Flag both consequences to the user before proceeding. If there are
+unbroadcast clones, ask whether to re-mine now or migrate later.
+
+After the mechanical migration is done, skip to [Step 8: Verify](#step-8-verify).
+
 ## Layout rule
 
 Place the factory-facing methods (`zzInit`, plus any typed `make`/
