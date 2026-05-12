@@ -30,7 +30,8 @@ This invariant has three consequences:
 ## Two patterns
 
 A **prototype** is a contract that is both a factory and an
-implementation: it has a `make(...)` method that mints EIP-1167 proxies
+implementation. It inherits `Prototype` (from `uniteum/proto`), which
+exposes `make(bytes args, uint256 variant)` to mint EIP-1167 proxies
 keyed to itself. Prototypes are deployed via Nick's deterministic
 deployer (`0x4e59b44847b379578588920cA78FbF26c0B4956C`).
 
@@ -39,13 +40,22 @@ prototypeAddr = create2(Nick, salt, keccak(creationCode ‖ abiEncode(args)))
 ```
 
 A **clone** is an EIP-1167 proxy minted by a prototype's `make(...)`
-call. The prototype XORs `keccak(abi.encode(makeArgs))` with the
-user-supplied variant to form the CREATE2 salt; the initcode is the
-55-byte EIP-1167 proxy stub keyed to the prototype.
+call. The prototype hashes the `bytes` args blob and XORs the result
+with the user-supplied variant to form the CREATE2 salt; the initcode
+is the 55-byte EIP-1167 proxy stub keyed to the prototype.
 
 ```
-cloneAddr = create2(prototype, keccak(args) ^ variant, keccak(eip1167(prototype)))
+args_bytes = abi.encode(<typed make args>)
+argshash   = keccak(abi.encode(args_bytes))    # note the double encoding
+salt       = argshash ^ variant
+cloneAddr  = create2(prototype, salt, keccak(eip1167(prototype)))
 ```
+
+The outer `abi.encode(args_bytes)` is Solidity's natural encoding of
+a `bytes calldata` parameter (32-byte offset ‖ 32-byte length ‖ padded
+data); it's how `Prototype.made(bytes,uint256)` hashes its argument.
+Tooling (`clone_predict`, `saltminer`) follows the same double-encoded
+form.
 
 Vanity addresses are produced by mining `salt` (prototype) or `variant`
 (clone) until the resulting address satisfies a target mask.
