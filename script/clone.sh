@@ -7,7 +7,7 @@
 #
 # Usage:
 #   source "$(git rev-parse --show-toplevel)/lib/crucible/script/clone.sh"
-#   clone_predict <CloneName> <deployer> <argsType> <argsValue> <variant>
+#   clone_predict <CloneName> <deployer> <argsType> <argsValue>... <variant>
 #
 # Optional env vars (captured into the yml when set):
 #   mask, target — vanity-mining inputs from saltminer
@@ -21,11 +21,13 @@ cd "$(git rev-parse --show-toplevel)"
 # Args:
 #   CloneName  — directory name under io/ for the artifacts
 #   deployer    — the Bitsy prototype that deploys this clone
-#   argsType   — Solidity type signature of make()'s args before variant.
-#                e.g. "(uint256,address)[]" for AddressLookup,
-#                     "(uint256,string)[]"  for StringLookup
-#   argsValue  — matching values, formatted as cast abi-encode expects.
-#                e.g. "[(1,0xabc),(8453,0xdef)]"
+#   argsType   — comma-separated Solidity types of make()'s args before
+#                variant — what would go between the parens in a function
+#                signature. One arg: "(uint256,address)[]" (AddressLookup),
+#                multi-arg: "address,string" (Reflector).
+#   argsValue… — one CLI value per top-level type in argsType.
+#                AddressLookup: a single array literal "[(1,0xabc),(8453,0xdef)]".
+#                Reflector:     two values, "$peg" "$symbol".
 #   variant    — uint256 hex value mined for the desired vanity address
 #
 # Stdout: prints "<CloneName>=<addr>".
@@ -33,8 +35,9 @@ clone_predict() {
     local clone="$1"
     local deployer="$2"
     local argstype="$3"
-    local args_value="$4"
-    local variant="$5"
+    shift 3
+    local variant="${!#}"
+    local args_values=("${@:1:$#-1}")
 
     # EIP-1167 minimal proxy initcode keyed to the deployer.
     local proxy_initcode="0x3d602d80600a3d3981f3363d3d373d3d3d363d73${deployer#0x}5af43d82803e903d91602b57fd5bf3"
@@ -47,7 +50,7 @@ clone_predict() {
     # where args is the `bytes` parameter's content — exactly what
     # cast abi-encode "f(<argstype>)" already produces.
     local args_bytes
-    args_bytes=$(cast abi-encode "f($argstype)" "$args_value")
+    args_bytes=$(cast abi-encode "f($argstype)" "${args_values[@]}")
     local argshash
     argshash=$(cast keccak "$args_bytes")
 
