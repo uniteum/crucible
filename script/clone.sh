@@ -42,15 +42,14 @@ clone_predict() {
     initcodehash=$(cast keccak "$proxy_initcode")
 
     # Prototype.made(bytes args, uint256 variant) computes
-    #   argshash = keccak256(abi.encode(args_bytes))
+    #   argshash = keccak256(args)
     #   salt     = argshash ^ variant
-    # where args_bytes is itself abi.encode(<typed args>). The outer
-    # encode is Solidity's natural wrapping of a `bytes` parameter
-    # (offset ‖ length ‖ padded data). We mirror that here.
+    # where args is the `bytes` parameter's content — exactly what
+    # cast abi-encode "f(<argstype>)" already produces.
     local args_bytes
     args_bytes=$(cast abi-encode "f($argstype)" "$args_value")
     local argshash
-    argshash=$(cast keccak "$(cast abi-encode "f(bytes)" "$args_bytes")")
+    argshash=$(cast keccak "$args_bytes")
 
     # XOR is too wide for bash arithmetic; defer to python.
     local salt
