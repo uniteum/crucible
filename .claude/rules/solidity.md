@@ -10,6 +10,29 @@ paths:
 ## Code Style
 
 - NatSpec: always use `/** */` multi-line block notation, never `///`
+- NatSpec continuation lines are flush-left under the `*`, not
+  indented to align with the tag content. Example:
+  ```solidity
+  /**
+   * @notice Wraps an ERC-20 into a liquid version with built-in
+   * AMM liquidity. The deposit mints N to the caller and N to
+   * the pool.
+   * @param token The underlying ERC-20 to wrap.
+   */
+  ```
+  Not:
+  ```solidity
+  /**
+   * @notice Wraps an ERC-20 into a liquid version with built-in
+   *         AMM liquidity. The deposit mints N to the caller and
+   *         N to the pool.
+   * @param  token The underlying ERC-20 to wrap.
+   */
+  ```
+  Rationale: flush-left matches OpenZeppelin, Solmate, Solady, and
+  Foundry's own contracts. It survives tag renames (`@notice` →
+  `@dev`) without a reflow, and `forge fmt` does not enforce
+  alignment either way.
 - Include `@notice` for public descriptions, `@param` and `@return` as needed
 - Function visibility order: external → public → internal → private
 - Imports: one per line, sorted alphabetically
