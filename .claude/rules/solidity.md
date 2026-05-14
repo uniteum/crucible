@@ -59,6 +59,22 @@ paths:
   }
   ```
 
+## Data Locations
+
+- Prefer `calldata` over `memory` for reference-type parameters
+  (arrays, structs, `bytes`, `string`) on `external` and `public`
+  functions that do not mutate the argument. `calldata` skips the
+  calldata→memory copy and is materially cheaper for non-trivial
+  inputs.
+- An overriding function may tighten an interface's `memory`
+  parameter to `calldata` — the ABI is identical and Solidity
+  permits the narrower location on the implementation.
+- Use `memory` when the function mutates the argument locally,
+  passes it to a callee that requires `memory`, or receives it from
+  `abi.decode` (which returns `memory`).
+- Internal/private helpers default to `memory`; `calldata` only
+  flows in from an external entry point.
+
 ## Compiler & EVM
 
 - Solidity 0.8.30+ required (EIP-1153 transient storage support)
