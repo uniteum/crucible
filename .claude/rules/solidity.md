@@ -39,6 +39,11 @@ paths:
   losslessly, but the prevailing convention (OpenZeppelin, Uniswap, Solady)
   is one block with internal paragraphs.
 - Function visibility order: external → public → internal → private
+- Inheritance list order in `contract X is ...`: interfaces first, then
+  base contracts ordered most-base to most-derived. Interfaces contribute
+  no implementation so they sit at the "most base-like" end; the
+  most-base-to-most-derived ordering on base contracts is also required
+  for C3 linearization to compile. Matches OpenZeppelin, Solady, Uniswap.
 - Imports: one per line, sorted alphabetically
 - Max line length: 120 characters
 - Indentation: 4 spaces
