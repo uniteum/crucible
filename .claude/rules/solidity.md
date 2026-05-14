@@ -34,6 +34,10 @@ paths:
   `@dev`) without a reflow, and `forge fmt` does not enforce
   alignment either way.
 - Include `@notice` for public descriptions, `@param` and `@return` as needed
+- Use a single `@dev` block with blank-line (`*`) paragraph breaks rather than
+  multiple consecutive `@dev` tags. solc concatenates repeated `@dev` tags
+  losslessly, but the prevailing convention (OpenZeppelin, Uniswap, Solady)
+  is one block with internal paragraphs.
 - Function visibility order: external → public → internal → private
 - Imports: one per line, sorted alphabetically
 - Max line length: 120 characters
