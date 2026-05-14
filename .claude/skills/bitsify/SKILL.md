@@ -124,12 +124,14 @@ and treat any missing pieces as "already done."
 The mechanical migration steps:
 
 1. **Inherit `Prototype`.** Add the import and update the contract
-   header:
+   header. Interfaces come first, then base contracts ordered
+   most-base to most-derived, so `Prototype` sits after any
+   interfaces:
 
    ```solidity
    import {Prototype} from "proto/Prototype.sol";
 
-   contract Foo is Prototype, /* other bases */ { ... }
+   contract Foo is /* interfaces */, Prototype, /* other base contracts */ { ... }
    ```
 
 2. **Delete the redeclared `proto` immutable.** It's inherited. If
@@ -211,31 +213,42 @@ After the mechanical migration is done, skip to [Step 8: Verify](#step-8-verify)
 
 ## Layout rule
 
-Place the factory-facing methods (`zzInit`, plus any typed `make`/
-`made`/`encode` wrappers you add) **at the end** of the contract,
-after the original business logic. This keeps core logic front and
-center, with the cloning machinery grouped together at the bottom —
-matching the Etherscan read experience where users see business
-functions first.
+Order functions by visibility — `external` → `public` → `internal` →
+`private` — per `solidity.md`. Within each visibility tier, place
+business logic first and the factory-facing methods (`made`, `make`,
+`zzInit`, `encode`, plus any private factory helpers) at the end of
+that tier. The factory's externals (`made`, `make`, `zzInit`) sit at
+the end of the external section; the `encode` helper sits at the end
+of the public section; private factory helpers sit at the end of the
+private section.
 
 ```
-contract Foo is Prototype {
+contract Foo is /* interfaces */, Prototype {
     // — state variables (no `proto` — that's inherited) —
     // — errors, events, modifiers —
     // — constructor (immutables and parent constructors only) —
-    // — core business logic (unchanged) —
-    // — factory: encode(), made(), make(), zzInit() —
+    // — external business logic —
+    // — external factory: made(), make(), zzInit() —
+    // — public business logic —
+    // — public factory: encode() —
+    // — internal/private helpers (business first, factory last) —
 }
 ```
 
+Inheritance list order is interfaces first, then base contracts
+ordered most-base to most-derived — `Prototype` (a base contract)
+goes after the interfaces.
+
 ## Step 1: Inherit `Prototype`
 
-Add the import and inheritance:
+Add the import and inheritance. Per `solidity.md`, interfaces come
+first, then base contracts; `Prototype` is a base contract, so it
+sits after any interfaces the contract declares:
 
 ```solidity
 import {Prototype} from "proto/Prototype.sol";
 
-contract Foo is Prototype, /* other bases */ { ... }
+contract Foo is /* interfaces */, Prototype, /* other base contracts */ { ... }
 ```
 
 You get for free:
@@ -326,24 +339,20 @@ The inherited `make(bytes,uint256)` is fully functional. Most Bitsy
 contracts also expose a typed surface so callers don't have to
 abi-encode by hand. The pattern:
 
-1. An `encode()` pure function that validates and `abi.encode`s the
-   per-clone init args (everything except `variant`).
-2. A typed `made(...)` that delegates to `this.made(encode(...), variant)`.
-3. A typed `make(...)` that calls `encode()`, then `this.make(args, variant)`
+1. A typed `made(...)` that delegates to `this.made(encode(...), variant)`.
+2. A typed `make(...)` that calls `encode()`, then `this.make(args, variant)`
    on the inherited bytes overload.
+3. An `encode()` pure function that validates and `abi.encode`s the
+   per-clone init args (everything except `variant`).
+
+Order them external-first per `solidity.md`: `made`, `make`, `zzInit`
+sit in the external section; `encode` is `public` and sits in the
+public section (after any public business logic) so that both wrappers
+and external callers can reach it.
 
 Example (cribbed from `Lepton`):
 
 ```solidity
-function encode(address maker, string calldata name, string calldata symbol, uint8 decimals_, uint256 supply)
-    public pure returns (bytes memory args)
-{
-    if (bytes(name).length == 0) revert Nameless();
-    if (bytes(symbol).length == 0) revert Symbolless();
-    if (supply == 0) revert Nothing();
-    args = abi.encode(maker, name, symbol, decimals_, supply);
-}
-
 function made(/* typed args */, uint256 variant)
     external view returns (bool exists, address home, bytes32 salt)
 {
@@ -357,6 +366,15 @@ function make(/* typed args */, uint256 variant)
     (bool exists, address home,) = this.make(args, variant);
     token = TypedReturn(home);
     if (!exists) emit Made(msg.sender, token, /* typed args */);
+}
+
+function encode(address maker, string calldata name, string calldata symbol, uint8 decimals_, uint256 supply)
+    public pure returns (bytes memory args)
+{
+    if (bytes(name).length == 0) revert Nameless();
+    if (bytes(symbol).length == 0) revert Symbolless();
+    if (supply == 0) revert Nothing();
+    args = abi.encode(maker, name, symbol, decimals_, supply);
 }
 ```
 
