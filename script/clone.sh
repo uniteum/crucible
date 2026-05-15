@@ -12,6 +12,10 @@
 # Optional env vars (captured into the yml when set):
 #   mask, target — vanity-mining inputs from saltminer
 
+# Shared CREATE2-input formulas (also used by the mining step). Sourced
+# by absolute path so it resolves regardless of the caller's cwd.
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 cd "$(git rev-parse --show-toplevel)"
 
 # clone_predict — predict the address of a Bitsy clone deployed by <deployer>'s
@@ -40,7 +44,8 @@ clone_predict() {
     local args_values=("${@:1:$#-1}")
 
     # EIP-1167 minimal proxy initcode keyed to the deployer.
-    local proxy_initcode="0x3d602d80600a3d3981f3363d3d373d3d3d363d73${deployer#0x}5af43d82803e903d91602b57fd5bf3"
+    local proxy_initcode
+    proxy_initcode=$(clone_proxy_initcode "$deployer")
     local initcodehash
     initcodehash=$(cast keccak "$proxy_initcode")
 
@@ -50,7 +55,7 @@ clone_predict() {
     # where args is the `bytes` parameter's content — exactly what
     # cast abi-encode "f(<argstype>)" already produces.
     local args_bytes
-    args_bytes=$(cast abi-encode "f($argstype)" "${args_values[@]}")
+    args_bytes=$(clone_args_bytes "$argstype" "${args_values[@]}")
     local argshash
     argshash=$(cast keccak "$args_bytes")
 
