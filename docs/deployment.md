@@ -2,12 +2,10 @@
 
 > **Status: as-built reference.** This describes the deployment
 > pipeline as it is actually implemented in
-> [`script/`](../script/) and consumed by `lepton`, `locale`,
-> `unispring`, and `uniteum`. The legacy Forge helper
+> [`script/`](../script/). The legacy Forge helper
 > [`script/Proto.s.sol`](../script/Proto.s.sol) is superseded by this
-> pipeline and is retained only for the two deferred Neutrino proto
-> scripts in `unispring` (`NeutrinoChannelProto.s.sol`,
-> `NeutrinoSourceProto.s.sol`); see [Status](#status) and the
+> pipeline and is retained only for backward compatibility with
+> consumers that still import it; see [Status](#status) and the
 > [`predict` skill](../.claude/skills/predict/SKILL.md).
 
 ## Invariant
@@ -103,19 +101,19 @@ A **prototype** yml records everything needed to reproduce the
 prediction and verify the source:
 
 ```yaml
-contract: Fountain                                              # forge inspect name
+contract: MyProto                                               # forge inspect name
 kind: prototype
 deployer: "0x4e59b44847b379578588920cA78FbF26c0B4956C"          # Nick
 initcodehash: "0x..."
-salt: "0x000000000000000000000000000000000000000000000000000000000236b9e6"
+salt: "0x..."                                                   # 32-byte CREATE2 salt
 compilerversion: "v0.8.34+commit...."                           # captured at predict time
 license: "MIT"                                                  # SPDX id from src
-mask: "0xfff000000000000000000000000000000000ffff"              # present only if vanity-mined
-target: "0xf00000000000000000000000000000000000e090"            # present only if vanity-mined
+mask: "0x..."                                                   # present only if vanity-mined
+target: "0x..."                                                 # present only if vanity-mined
 args:                                                           # raw constructor values, in order
-  - "0x9891e323517761F525e55817F1b3fa2C52620b78"
-  - "0xB001b0342E8bf106c8DdB2f858a8cA15A171e300"
-home: "0xF00c0C30CE13f01c77C1F8d60Fc1146014B4E090"              # the predicted address
+  - "0x..."
+  - "0x..."
+home: "0x..."                                                   # the predicted address
 ```
 
 A **clone** yml records the factory inputs instead. `deployer` is the
@@ -124,7 +122,7 @@ XORs with `argshash` to form the CREATE2 salt, and `argshash` /
 `argstype` make the prediction reproducible:
 
 ```yaml
-contract: PoolManagerLookup
+contract: MyClone
 kind: clone
 deployer: "0x..."                                               # the prototype that make()s it
 initcodehash: "0x..."                                           # keccak(eip1167(prototype))
@@ -132,7 +130,7 @@ argstype: "(uint256,address)[]"                                 # types between 
 argshash: "0x..."                                               # keccak(args_bytes)
 mask: "0x..."                                                   # present only if vanity-mined
 target: "0x..."                                                 # present only if vanity-mined
-variant: "0x...01e833d4bb"
+variant: "0x..."
 home: "0x..."
 ```
 
@@ -158,13 +156,13 @@ lib/crucible/script/
   verify.sh    submits a committed .json to Etherscan
 
 <consumer-repo>/io/
-  Fountain/
-    Fountain.sh   prediction recipe — sources proto.sh, calls proto_predict
+  <Proto>/
+    <Proto>.sh   prediction recipe — sources proto.sh, calls proto_predict
     <addr>.txt
     <addr>.yml
     <addr>.json
-  PoolManagerLookup/
-    PoolManagerLookup.sh   prediction recipe — sources clone.sh, calls clone_predict
+  <Clone>/
+    <Clone>.sh   prediction recipe — sources clone.sh, calls clone_predict
     <addr>.txt
     <addr>.yml
 ```
@@ -177,19 +175,22 @@ lib/crucible/script/
 Each `<contract>.sh` is the prediction recipe for that contract,
 co-located with the artifacts it produces. Inputs (mined salt/variant,
 factory and constructor-arg addresses, the contract name) are written
-**inline in the script itself**, not pulled from `.env`. A real
-example, [`unispring/io/Fountain/Fountain.sh`](../../unispring/io/Fountain/Fountain.sh):
+**inline in the script itself**, not pulled from `.env`. The shape of
+a prototype recipe:
 
 ```bash
 source "$(git rev-parse --show-toplevel)/lib/crucible/script/proto.sh"
 
-PoolManagerLookup=0xB001b0342E8bf106c8DdB2f858a8cA15A171e300
-owner=0x9891e323517761F525e55817F1b3fa2C52620b78
-mask=0xfff000000000000000000000000000000000ffff
-target=0xf00000000000000000000000000000000000e090
-proto_predict Fountain 0x...0236b9e6 \
-    "constructor(address,address)" "$owner" "$PoolManagerLookup"
+dep=0x...                  # a constructor-arg address
+owner=0x...
+mask=0x...                 # optional: set only when the address is vanity-mined
+target=0x...
+proto_predict MyProto 0x...<salt> \
+    "constructor(address,address)" "$owner" "$dep"
 ```
+
+A clone recipe is the same shape but sources `clone.sh` and calls
+`clone_predict` instead.
 
 Re-running the script regenerates the artifacts from current inputs
 plus the contract source (bytecode via `forge inspect`). There are
@@ -354,16 +355,18 @@ for the full pattern.
 
 ## Status
 
-The pipeline is implemented and in use. `lepton`, `locale`,
-`unispring`, and `uniteum` deploy their prototypes and clones through
-`io/<contract>/<contract>.sh` + `deploy.sh`/`verify.sh`, and the
+The pipeline is implemented and in use: consumer repos predict their
+prototypes and clones through `io/<contract>/<contract>.sh` +
+`deploy.sh`/`verify.sh`, and the
 [`predict` skill](../.claude/skills/predict/SKILL.md) generates new
 recipes.
 
 The legacy Forge helper [`script/Proto.s.sol`](../script/Proto.s.sol)
-(`ProtoScript`) is superseded. It is retained **only** because
-`unispring`'s two deferred Neutrino proto scripts
-(`NeutrinoChannelProto.s.sol`, `NeutrinoSourceProto.s.sol`) still
-import it; no other consumer does. When those two migrate to
-`proto_predict`, `Proto.s.sol` and the `## ProtoScript` section of
-[`README.md`](../README.md) can be removed outright.
+(`ProtoScript`) is superseded and retained only for backward
+compatibility with consumers that still import it via
+`remappings.txt`. crucible deliberately does **not** enumerate which
+consumers still depend on it — a low-level shared layer must not name
+the higher-level repos that use it; that inventory belongs with each
+consumer's own migration tracking. When no consumer imports
+`ProtoScript`, `Proto.s.sol` and the legacy section of
+[`README.md`](../README.md) can be removed.

@@ -258,12 +258,14 @@ env=prod chain=42161 forge script script/MyContractProto.s.sol \
     -f $chain --private-key $tx_key --broadcast
 ```
 
-It is retained **only** because `unispring`'s two deferred Neutrino
-proto scripts (`NeutrinoChannelProto.s.sol`,
-`NeutrinoSourceProto.s.sol`) still import it; no other consumer does.
-When those migrate to `proto_predict`, `Proto.s.sol` and this section
-can be removed. Do not write new deployments against `ProtoScript` —
-use the pipeline in [docs/deployment.md](docs/deployment.md).
+It is retained for backward compatibility with consumers that still
+import it via `remappings.txt`. crucible does not enumerate which
+consumers — a low-level shared layer must not name the higher-level
+repos that depend on it; that inventory belongs with each consumer's
+own migration tracking. When no consumer imports `ProtoScript`,
+`Proto.s.sol` and this section can be removed. Do not write new
+deployments against `ProtoScript` — use the pipeline in
+[docs/deployment.md](docs/deployment.md).
 
 ---
 
