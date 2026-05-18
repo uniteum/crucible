@@ -124,6 +124,7 @@ The table below is a human-readable summary.
 | `.claude/rules/solidity.md` | `.claude/rules/solidity.md` | Claude Code rules for Solidity files |
 | `.claude/rules/crucible-tests.md` | `.claude/rules/crucible-tests.md` | Claude Code rules for test files |
 | `.claude/rules/submodule.md` | `.claude/rules/submodule.md` | Claude Code rules for submodule maintenance |
+| `.claude/rules/crucible-managed.md` | `.claude/rules/crucible-managed.md` | Claude Code rule: edit crucible-managed files in the submodule, not the copy |
 | `.claude/skills/bitsify/SKILL.md` | `.claude/skills/bitsify/SKILL.md` | `/bitsify` skill — convert a contract to the Bitsy pattern |
 | `.claude/skills/smelt/SKILL.md` | `.claude/skills/smelt/SKILL.md` | `/smelt` skill — apply the crucible pattern |
 | `.claude/skills/smelt/smelt.sh` | `.claude/skills/smelt/smelt.sh` | Copy script invoked by `/smelt` |
