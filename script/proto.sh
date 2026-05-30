@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# crucible/script/lib.sh — deployment helpers sourced by per-contract scripts.
+# crucible/script/proto.sh — predict a Nick-deployed prototype's CREATE2
+# address and write io/<Contract>/<addr>.{txt,yml,json}.
 #
 # Sourcing this file cd's to the repo root so relative io/<contract>/... paths
 # resolve consistently regardless of where the calling script was invoked from.
 #
 # Usage:
-#   source "$(git rev-parse --show-toplevel)/lib/crucible/script/lib.sh"
+#   source "$(git rev-parse --show-toplevel)/lib/crucible/script/proto.sh"
 #   proto_predict <ContractName> <salt> [<constructorSig> <arg>...]
+
+# Shared CREATE2-input formulas (saltminer_url, etc.), sourced by absolute path
+# so it resolves regardless of the caller's cwd.
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -43,6 +48,9 @@ proto_predict() {
         initcode="$bytecode"
     fi
 
+    local initcodehash
+    initcodehash=$(cast keccak "$initcode")
+
     local addr
     addr=$(cast create2 --deployer "$NICK" --salt "$salt" --init-code "$initcode")
 
@@ -70,7 +78,7 @@ proto_predict() {
         echo "contract: $contract"
         echo "kind: prototype"
         echo "deployer: \"$NICK\""
-        echo "initcodehash: \"$(cast keccak "$initcode")\""
+        echo "initcodehash: \"$initcodehash\""
         echo "salt: \"$salt\""
         echo "compilerversion: \"$compilerversion\""
         echo "license: \"$license\""
@@ -79,6 +87,13 @@ proto_predict() {
         fi
         if [[ -n "${target:-}" ]]; then
             echo "target: \"$target\""
+        fi
+        # A prototype folds nothing into the salt field, so its saltminer
+        # argshash is 32 zero bytes and the mined salt is the CREATE2 salt.
+        if [[ -n "${mask:-}" && -n "${target:-}" ]]; then
+            echo "saltminer: \"$(saltminer_url "$NICK" "$initcodehash" \
+                0x0000000000000000000000000000000000000000000000000000000000000000 \
+                "$mask" "$target")\""
         fi
         if [[ ${#constructor_args[@]} -gt 0 ]]; then
             echo "args:"

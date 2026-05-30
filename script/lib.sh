@@ -29,6 +29,19 @@ clone_args_bytes() {
     cast abi-encode "f($argstype)" "$@"
 }
 
+# saltminer_url <deployer> <initcodehash> <argshash> <mask> <target>
+#
+# Echo a prefilled saltbounty.com link that mines a vanity address for these
+# CREATE2 inputs. saltbounty.com is the in-browser (WebGPU) port of saltminer:
+# open the link, click "mine", and it reports the matching salt — which is the
+# `variant` for a clone (argshash set) or the `salt` for a prototype (argshash
+# all-zero). Captured into the yml so the mining inputs travel with the
+# deployment metadata and can never drift from the predicted address.
+saltminer_url() {
+    printf 'https://saltbounty.com/#deployer=%s&initcodehash=%s&argshash=%s&mask=%s&target=%s&min=0&max=0xffffffffffffffff&dispatch=1048576' \
+        "$1" "$2" "$3" "$4" "$5"
+}
+
 # mine_clone <deployer> <argstype> <argsValue>...
 #
 # Vanity-mine a `variant` for a Bitsy clone deployed by <deployer>'s

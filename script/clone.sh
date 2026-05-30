@@ -7,7 +7,8 @@
 #
 # Usage:
 #   source "$(git rev-parse --show-toplevel)/lib/crucible/script/clone.sh"
-#   clone_predict <CloneName> <deployer> <argsType> <argsValue>... <variant>
+#   clone_predict <CloneName> <deployer> <argsType> <argsValue>... <variant> \
+#       [-- <target> <callSig> <callArg>...]
 #
 # Optional env vars (captured into the yml when set):
 #   mask, target — vanity-mining inputs from saltminer
@@ -34,14 +35,37 @@ cd "$(git rev-parse --show-toplevel)"
 #                Reflector:     two values, "$peg" "$symbol".
 #   variant    — uint256 hex value mined for the desired vanity address
 #
+# Optional call spec (after a `--` separator): <target> <callSig> <callArg>...
+#   By default the .txt holds the generic `deployer.make(bytes args, uint256
+#   variant)` calldata. A two-level factory instead mints its clone through a
+#   purpose-built function on a different contract — e.g. a Reflector issue is
+#   created by `maker.issue(name, variant, supply)`, not by calling the
+#   coinage's make(bytes,uint256). Pass that call here and clone_predict
+#   encodes it into the .txt and records <target> as the yml `via:` so
+#   deploy.sh broadcasts to it instead of to <deployer>.
+#     target   — the contract the transaction is sent to (the yml `via:`)
+#     callSig  — the function signature to encode (e.g. "issue(string,uint256,uint256)")
+#     callArg… — one value per parameter in callSig
+#
 # Stdout: prints "<CloneName>=<addr>".
 clone_predict() {
     local clone="$1"
     local deployer="$2"
     local argstype="$3"
     shift 3
-    local variant="${!#}"
-    local args_values=("${@:1:$#-1}")
+
+    # Split the rest on an optional `--`: the address-determining args (whose
+    # keccak is the argshash) and the variant come first; an explicit on-chain
+    # call to encode into the .txt comes after.
+    local -a pre=() call=()
+    local in_call=0 a
+    for a in "$@"; do
+        if [[ $in_call -eq 0 && "$a" == "--" ]]; then in_call=1; continue; fi
+        if [[ $in_call -eq 0 ]]; then pre+=("$a"); else call+=("$a"); fi
+    done
+
+    local variant="${pre[-1]}"
+    local args_values=("${pre[@]:0:${#pre[@]}-1}")
 
     # EIP-1167 minimal proxy initcode keyed to the deployer.
     local proxy_initcode
@@ -69,16 +93,30 @@ clone_predict() {
     local dir="io/$clone"
     mkdir -p "$dir"
 
-    # The .txt file is the calldata sent to the deployer:
-    # Prototype.make(bytes args, uint256 variant).
-    local input
-    input=$(cast calldata "make(bytes,uint256)" "$args_bytes" "$variant")
+    # The .txt file is the calldata an operator broadcasts to create this
+    # clone, and `via` is the contract it is sent to. By default that is the
+    # generic deployer.make(bytes args, uint256 variant); an explicit call spec
+    # overrides both (e.g. maker.issue(name, variant, supply)).
+    local input via
+    if [[ ${#call[@]} -gt 0 ]]; then
+        via="${call[0]}"
+        input=$(cast calldata "${call[1]}" "${call[@]:2}")
+    else
+        via="$deployer"
+        input=$(cast calldata "make(bytes,uint256)" "$args_bytes" "$variant")
+    fi
     printf '%s' "$input" > "$dir/$addr.txt"
 
     {
         echo "contract: $clone"
         echo "kind: clone"
         echo "deployer: \"$deployer\""
+        # The CREATE2 deployer fixes the address; `via` is who the creation tx
+        # is sent to. They differ only for two-level factories (e.g. issues),
+        # so it is omitted when they coincide.
+        if [[ "$via" != "$deployer" ]]; then
+            echo "via: \"$via\""
+        fi
         echo "initcodehash: \"$initcodehash\""
         echo "argstype: \"$argstype\""
         echo "argshash: \"$argshash\""
@@ -87,6 +125,9 @@ clone_predict() {
         fi
         if [[ -n "${target:-}" ]]; then
             echo "target: \"$target\""
+        fi
+        if [[ -n "${mask:-}" && -n "${target:-}" ]]; then
+            echo "saltminer: \"$(saltminer_url "$deployer" "$initcodehash" "$argshash" "$mask" "$target")\""
         fi
         echo "variant: \"$variant\""
         echo "home: \"$addr\""
