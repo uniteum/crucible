@@ -38,11 +38,12 @@ cd "$(git rev-parse --show-toplevel)"
 # Optional call spec (after a `--` separator): <target> <callSig> <callArg>...
 #   By default the .txt holds the generic `deployer.make(bytes args, uint256
 #   variant)` calldata. A two-level factory instead mints its clone through a
-#   purpose-built function on a different contract — e.g. a Reflector issue is
-#   created by `maker.issue(name, variant, supply)`, not by calling the
-#   coinage's make(bytes,uint256). Pass that call here and clone_predict
+#   purpose-built function on a different contract — e.g. a two-level
+#   factory's `maker.issue(name, supply, variant)`, not the inherited
+#   make(bytes,uint256). Pass that call here and clone_predict
 #   encodes it into the .txt and records <target> as the yml `via:` so
-#   deploy.sh broadcasts to it instead of to <deployer>.
+#   deploy.sh broadcasts to it instead of to <deployer>. Keep `variant` the
+#   trailing argument of <callSig> to match the Bitsy maker convention.
 #     target   — the contract the transaction is sent to (the yml `via:`)
 #     callSig  — the function signature to encode (e.g. "issue(string,uint256,uint256)")
 #     callArg… — one value per parameter in callSig
@@ -96,7 +97,7 @@ clone_predict() {
     # The .txt file is the calldata an operator broadcasts to create this
     # clone, and `via` is the contract it is sent to. By default that is the
     # generic deployer.make(bytes args, uint256 variant); an explicit call spec
-    # overrides both (e.g. maker.issue(name, variant, supply)).
+    # overrides both (e.g. maker.issue(name, supply, variant)).
     local input via
     if [[ ${#call[@]} -gt 0 ]]; then
         via="${call[0]}"
