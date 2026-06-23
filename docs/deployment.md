@@ -1,10 +1,12 @@
 # Deployment
 
-> **Status: design doc, not yet implemented.** This describes the target
-> layout for refactoring `unispring/script/*.sh` and equivalent
-> deployment scripts across consumer repos. The current
+> **Status: as-built reference.** This describes the deployment
+> pipeline as it is actually implemented in
+> [`script/`](../script/). The legacy Forge helper
 > [`script/Proto.s.sol`](../script/Proto.s.sol) is superseded by this
-> design and will be retired once consumers have migrated.
+> pipeline and is retained only for backward compatibility with
+> consumers that still import it; see [Status](#status) and the
+> [`predict` skill](../.claude/skills/predict/SKILL.md).
 
 ## Invariant
 
@@ -30,7 +32,8 @@ This invariant has three consequences:
 ## Two patterns
 
 A **prototype** is a contract that is both a factory and an
-implementation: it has a `make(...)` method that mints EIP-1167 proxies
+implementation. It inherits `Prototype` (from `uniteum/proto`), which
+exposes `make(bytes args, uint256 variant)` to mint EIP-1167 proxies
 keyed to itself. Prototypes are deployed via Nick's deterministic
 deployer (`0x4e59b44847b379578588920cA78FbF26c0B4956C`).
 
@@ -38,28 +41,45 @@ deployer (`0x4e59b44847b379578588920cA78FbF26c0B4956C`).
 prototypeAddr = create2(Nick, salt, keccak(creationCode ‖ abiEncode(args)))
 ```
 
+`proto_predict` builds the initcode as `forge inspect <C> bytecode`
+concatenated with `cast abi-encode <constructorSig> <args>`.
+
 A **clone** is an EIP-1167 proxy minted by a prototype's `make(...)`
-call. The prototype XORs `keccak(abi.encode(makeArgs))` with the
-user-supplied variant to form the CREATE2 salt; the initcode is the
-55-byte EIP-1167 proxy stub keyed to the prototype.
+call. The prototype hashes the `bytes` args blob and XORs the result
+with the user-supplied variant to form the CREATE2 salt; the initcode
+is the 55-byte EIP-1167 proxy stub keyed to the prototype.
 
 ```
-cloneAddr = create2(prototype, keccak(args) ^ variant, keccak(eip1167(prototype)))
+args_bytes = cast abi-encode "f(<argstype>)" <values…>   # the bytes Prototype.made receives
+argshash   = keccak(args_bytes)
+salt       = argshash ^ variant
+cloneAddr  = create2(prototype, salt, keccak(eip1167(prototype)))
+```
+
+`args_bytes` is the content of `make`'s `bytes` parameter, and
+`argshash` is hashed from it **directly** — there is no second
+`abi.encode` wrapper. (Earlier tooling double-encoded; that was
+removed so `argshash` matches what `Prototype.made(bytes,uint256)`
+actually computes.) The EIP-1167 stub is:
+
+```
+0x3d602d80600a3d3981f3363d3d373d3d3d363d73<deployer>5af43d82803e903d91602b57fd5bf3
 ```
 
 Vanity addresses are produced by mining `salt` (prototype) or `variant`
-(clone) until the resulting address satisfies a target mask.
+(clone) until the resulting address satisfies a target mask — see
+[Salt mining](#salt-mining).
 
 ## Artifacts
 
 For each predicted address, two or three files are written under
 `io/<contract>/`:
 
-| File          | Contents                                         | Prototype | Clone |
-|---------------|--------------------------------------------------|-----------|-------|
-| `<addr>.txt`  | Raw transaction input data                       | yes       | yes   |
-| `<addr>.yml`  | Metadata: deployer, variant, mining inputs, args | yes       | yes   |
-| `<addr>.json` | Etherscan standard-input verification JSON       | yes       | no    |
+| File          | Contents                                              | Prototype | Clone |
+|---------------|-------------------------------------------------------|-----------|-------|
+| `<addr>.txt`  | Raw transaction input data sent to `deployer`         | yes       | yes   |
+| `<addr>.yml`  | Metadata: kind, deployer, hashes, mining inputs, args | yes       | yes   |
+| `<addr>.json` | Etherscan standard-input verification JSON            | yes       | no    |
 
 Clones do not need `<addr>.json`: an EIP-1167 proxy is verified by
 Etherscan's proxy-detection mechanism, which keys to the prototype's
@@ -67,216 +87,286 @@ already-verified source.
 
 ### `<addr>.txt`
 
-For a prototype, the file contains `salt ‖ initcode` — the calldata
-Nick's deployer expects. For a clone, the file contains the encoded
-factory call (e.g. `make(uint256)` selector ‖ variant), to be sent to
-the prototype's address.
+For a **prototype**, the file is `salt ‖ initcode` — the calldata
+Nick's deployer expects. For a **clone**, the file is
+`cast calldata "make(bytes,uint256)" <args_bytes> <variant>` — the
+call sent to the prototype's address.
 
-The `.txt` file is what `deploy.sh` broadcasts. It encodes everything
-the deployer needs; no further computation is required at deploy time.
+The `.txt` file is exactly what `deploy.sh` broadcasts; no further
+computation happens at deploy time.
 
 ### `<addr>.yml`
 
+A **prototype** yml records everything needed to reproduce the
+prediction and verify the source:
+
 ```yaml
-contract: Fountain          # source contract name (matches forge inspect)
-kind: prototype             # or "clone"
-deployer: 0x4e59b44847b379578588920cA78FbF26c0B4956C
-variant: 0x00000000000000000000000000000000000000000000000000000001c8688910
-mask: 0xffffffff00000000000000000000000000000000000000000000000000000000
-match: 0xfeedface00000000000000000000000000000000000000000000000000000000
-initcodeHash: 0x...
-args:
-  - name: poolManager
-    type: address
-    value: 0x...
+contract: MyProto                                               # forge inspect name
+kind: prototype
+deployer: "0x4e59b44847b379578588920cA78FbF26c0B4956C"          # Nick
+initcodehash: "0x..."
+salt: "0x..."                                                   # 32-byte CREATE2 salt
+compilerversion: "v0.8.34+commit...."                           # captured at predict time
+license: "MIT"                                                  # SPDX id from src
+mask: "0x..."                                                   # present only if vanity-mined
+target: "0x..."                                                 # present only if vanity-mined
+args:                                                           # raw constructor values, in order
+  - "0x..."
+  - "0x..."
+home: "0x..."                                                   # the predicted address
 ```
 
-For a clone, `kind: clone`, `deployer` is the prototype's address,
-`variant` is the user-supplied input that the prototype XORs with
-`argsHash` to form the CREATE2 salt, and an additional `argsHash`
-field records `keccak(abi.encode(makeArgs))` for prediction
-reproducibility:
+A **clone** yml records the factory inputs instead. `deployer` is the
+prototype's address, `variant` is the user-supplied value the prototype
+XORs with `argshash` to form the CREATE2 salt, and `argshash` /
+`argstype` make the prediction reproducible:
 
 ```yaml
-contract: Fountain
+contract: MyClone
 kind: clone
-deployer: 0xF0F1d225A78c1EdcD0f5a9E31398Ed0BA3Dee071   # the Fountain prototype
-variant: 0x00000000000000000000000000000000000000000000000000000001e833d4bb
-mask: 0xffff00000000000000000000000000000000000000000000000000000000ffff
-match: 0xfeed000000000000000000000000000000000000000000000000000000000001
-argsHash: 0x...
-args:
-  - name: maker
-    type: address
-    value: 0xff966FE50802B74B538D2c6311Fc0201014AA294
+deployer: "0x..."                                               # the prototype that make()s it
+initcodehash: "0x..."                                           # keccak(eip1167(prototype))
+argstype: "(uint256,address)[]"                                 # types between make()'s parens
+argshash: "0x..."                                               # keccak(args_bytes)
+mask: "0x..."                                                   # present only if vanity-mined
+target: "0x..."                                                 # present only if vanity-mined
+variant: "0x..."
+home: "0x..."
 ```
 
-`mask` and `match` are recorded so that re-mining on a different
-machine produces the same variant deterministically — if it doesn't,
+`compilerversion` and `license` are captured at predict time so
+`verify.sh` can submit the source even if `foundry.toml` later changes
+solc. `mask`/`target` are recorded so re-mining on another machine
+produces the same salt/variant deterministically — if it doesn't,
 something has drifted.
 
-The `args` block is documentation only. `deploy.sh` does not read it;
-`<addr>.txt` already encodes everything needed to broadcast.
+The `args` block is documentation and is also walked by `deploy.sh` to
+recurse into constructor-arg dependencies (see
+[Deploy algorithm](#deploy-algorithm)); the `.txt` already encodes
+everything needed to broadcast.
 
 ## Layout
 
 ```
 lib/crucible/script/
-  deploy.sh          broadcasts committed .txt files to their deployers
-  verify.sh          submits .json files to configured block explorers
-  lib.sh             shared bash helpers (proto_predict, clone_predict, …)
-  verifiers.yml      chain-id → list of block-explorer endpoints
+  lib.sh       shared CREATE2 formulas + mine_clone; cd's nowhere
+  proto.sh     proto_predict — prototype prediction; cd's to repo root
+  clone.sh     clone_predict — clone prediction; sources lib.sh; cd's to repo root
+  deploy.sh    broadcasts committed .txt files to their deployers
+  verify.sh    submits a committed .json to Etherscan
 
 <consumer-repo>/io/
-  Fountain/
-    Fountain.sh      prediction recipe — sources lib.sh, calls proto_predict
+  <Proto>/
+    <Proto>.sh   prediction recipe — sources proto.sh, calls proto_predict
     <addr>.txt
     <addr>.yml
     <addr>.json
-  Fountain1/
-    Fountain1.sh     prediction recipe — sources lib.sh, calls clone_predict
+  <Clone>/
+    <Clone>.sh   prediction recipe — sources clone.sh, calls clone_predict
     <addr>.txt
     <addr>.yml
 ```
 
-Each `<contract>.sh` is the prediction recipe for that contract,
-co-located with the artifacts it produces. Re-running the script
-regenerates the artifacts from current inputs. Inputs come from the
-repo's `.env` (mined salts/variants, factory addresses, args) and from
-the contract source (bytecode via `forge inspect`).
+> **Known nit:** [`proto.sh`](../script/proto.sh) still carries a
+> stale `# crucible/script/lib.sh` header comment from before the
+> shared formulas were factored into a separate `lib.sh`. It is
+> cosmetic — consumers source `proto.sh` by name.
 
-There are **no per-repo orchestration scripts**. The two scripts in
-crucible (`deploy.sh`, `verify.sh`) are the entire deployment surface
+Each `<contract>.sh` is the prediction recipe for that contract,
+co-located with the artifacts it produces. Inputs (mined salt/variant,
+factory and constructor-arg addresses, the contract name) are written
+**inline in the script itself**, not pulled from `.env`. The shape of
+a prototype recipe:
+
+```bash
+source "$(git rev-parse --show-toplevel)/lib/crucible/script/proto.sh"
+
+dep=0x...                  # a constructor-arg address
+owner=0x...
+mask=0x...                 # optional: set only when the address is vanity-mined
+target=0x...
+proto_predict MyProto 0x...<salt> \
+    "constructor(address,address)" "$owner" "$dep"
+```
+
+A clone recipe is the same shape but sources `clone.sh` and calls
+`clone_predict` instead.
+
+Re-running the script regenerates the artifacts from current inputs
+plus the contract source (bytecode via `forge inspect`). There are
+**no per-repo orchestration scripts** — the three predict helpers plus
+`deploy.sh`/`verify.sh` in crucible are the entire deployment surface
 for every consumer repo.
+
+### Predict helpers
+
+```
+proto_predict <ContractName> <salt> [<constructorSig> <arg>...]
+clone_predict <CloneName> <deployer> <argsType> <argsValue>... <variant>
+```
+
+`proto_predict` writes `<addr>.{txt,yml,json}`; `clone_predict` writes
+`<addr>.{txt,yml}` (no `.json`). Both print `<Name>=<addr>` on stdout
+and `cd` to the repo root on source so `io/<contract>/...` resolves
+regardless of the caller's cwd. `clone_predict` sources `lib.sh` for
+the shared `clone_proxy_initcode` / `clone_args_bytes` formulas so
+prediction and mining cannot drift apart.
 
 ## Deploy algorithm
 
-Run `bash lib/crucible/script/deploy.sh <chain>` from a consumer repo's
-root. The script defines a single recursive function:
+```
+bash lib/crucible/script/deploy.sh [-b|--broadcast] [<wallet-flags>] <chain> <addr>
+```
+
+Run from a consumer repo's root. **Default is dry-run**: the dep chain
+is walked and printed in order without sending anything. Pass `-b` /
+`--broadcast` to actually broadcast. In broadcast mode the wallet
+defaults to `--private-key "$tx_key"`; any cast wallet flag
+(`--account`, `--keystore`, `--ledger`, `--mnemonic …`, …) passed
+before the positional args overrides that.
+
+`<chain>` is an `[rpc_endpoints]` key from `foundry.toml` or an RPC
+URL. `<addr>` is the target; its `<addr>.yml` is located by indexing
+every `io/*/<addr>.yml` in this repo **and in every sibling repo's
+`io/`** (`../*/io`, overridable via `io_root`). This lets a repo
+depend on contracts whose artifacts live in another repo without
+vendoring it as a submodule.
 
 ```
 deploy(addr):
-    if addr has code on chain:
-        return
-    yml = lookup(addr)                     # error if no io entry
-    deploy(yml.deployer)                   # recursively ensure prerequisite
-    broadcast yml.contract/<addr>.txt to yml.deployer
+    if addr already visited this run:    return        # VISITED memo
+    if cast code addr on chain != 0x:    return        # already deployed
+    yml = YML_PATH[addr]                                # error if no io entry
+    deploy(yml.deployer)                                # ensure the factory exists
+    for argAddr in yml.args having an io entry:
+        deploy(argAddr)                                 # ensure runtime deps exist
+    broadcast yml's <addr>.txt to yml.deployer          # cast send (broadcast mode only)
 ```
 
-Top-level: index every `io/*/<addr>.yml` into an `addr → yml` map, then
-call `deploy(addr)` for every entry.
-
-Each branch terminates at an already-deployed address — memoized via
-`cast code`. Nick's deployer is not special-cased: it is treated as
-just another dependency that happens to already exist on every chain
-we target, so the recursion bottoms out there for prototypes.
-Memoization is implicit: once a contract is deployed in this run, the
-next `deploy(addr)` call for the same address sees its code and returns
-immediately. No cycle detection is needed — clones depend on prototypes
-that were minted before them, so the dep graph is a DAG by
-construction.
-
-`cast code` is the source of truth for what exists on-chain, so
-partial-failure recovery is automatic: rerun and the script picks up
-where it left off. Re-deploying the full graph to a new chain is the
-same command — `deploy.sh <newchain>`.
+`cast code` is the source of truth, so partial-failure recovery is
+automatic: rerun and the script picks up where it left off.
+Constructor-arg addresses with no io entry (external contracts like a
+Uniswap V4 PoolManager or USDC) are silently skipped. No cycle
+detection is needed — clones depend on prototypes minted before them,
+so the graph is a DAG by construction. Nick's deployer is not
+special-cased: it bottoms out the recursion because it already has
+code on every chain we target.
 
 ### Chains without Nick
 
 A handful of niche or new chains do not yet have Nick's deployer at
-`0x4e59b44...`. On such a chain, the recursion fails at the first
-prototype because Nick himself has no code and no io entry to bring
-him up. Bootstrapping him is straightforward but out of scope for the
-initial `deploy.sh`: the standard recipe is to fund the pre-funded EOA
-`0x3fab184622dc19b6109349b94811493bf2a45362` with a small amount of
-native gas and broadcast Arachnid's canonical pre-signed transaction.
-A future iteration may model this as another `io/` entry — perhaps
-`kind: presigned` with the raw transaction stored as the `.txt` file —
-so that Nick is bootstrapped by the same recursive deploy step as
-everything else. For now, operators should bootstrap Nick manually on
-such chains before running `deploy.sh`.
+`0x4e59b44...`. There the recursion fails at the first prototype
+because Nick himself has no code and no io entry to bring him up. The
+standard fix is to fund the pre-funded EOA
+`0x3fab184622dc19b6109349b94811493bf2a45362` with a little native gas
+and broadcast Arachnid's canonical pre-signed transaction. Doing this
+through the same recursive step (e.g. a `kind: presigned` io entry
+whose `.txt` is the raw transaction) is a possible future iteration;
+for now, operators bootstrap Nick manually on such chains before
+running `deploy.sh`.
 
 ## Verification
 
-The `<addr>.json` file is the Etherscan **standard-input JSON**: a
-self-contained bundle of source files, compiler version, optimizer
-settings, libraries, and constructor args, generated by
-`forge verify-contract --show-standard-json-input`. Block explorers
-accept this format directly — it tells them how to recompile the
-contract and check the resulting bytecode against on-chain code.
-
-Verification is deliberately separate from deployment because:
-
-- It can lag deployment by minutes (the explorer's indexer needs to
-  see the deploy tx before verification will succeed).
-- It can fail or rate-limit independently of broadcast, and benefits
-  from retry.
-- A single chain often has multiple explorers (Etherscan + Sourcify,
-  sometimes Blockscout) you want to push to.
-
-`verify.sh <chain>` walks `io/<contract>/<addr>.json` and submits each
-to every verifier configured for that chain, skipping addresses
-already verified on a given explorer. Like `deploy.sh`, it is
-idempotent: rerun until everything is green.
-
-### Verifier configuration
-
-`lib/crucible/script/verifiers.yml` maps chain ID to a list of
-explorer endpoints:
-
-```yaml
-1:
-  - kind: etherscan
-    url: https://api.etherscan.io/v2/api
-    keyEnv: ETHERSCAN_API_KEY
-  - kind: sourcify
-    url: https://sourcify.dev/server
-8453:
-  - kind: etherscan
-    url: https://api.basescan.org/api
-    keyEnv: BASESCAN_API_KEY
+```
+ETHERSCAN_API_KEY=... bash lib/crucible/script/verify.sh <chain> <addr>
 ```
 
-`verify.sh` iterates `(addr, verifier)` pairs, calling
-`forge verify-contract` under the hood with the appropriate
-`--verifier` and `--verifier-url` flags. API keys come from the env
-vars named in `keyEnv`. Adding support for a new chain or explorer
-means editing this file, not the script.
+`verify.sh` locates `<addr>.yml` (local `io/` first, then sibling
+repos under `io_root`) and submits the **committed** `<addr>.json` —
+the Etherscan standard-input bundle captured at predict time by
+`forge verify-contract --show-standard-json-input` — to Etherscan's
+unified **v2 API** (`https://api.etherscan.io/v2/api?chainid=<chain>`),
+then polls `checkverifystatus` until it passes or times out.
+
+It intentionally does **not** call `forge verify-contract` at this
+stage: forge would regenerate the standard input from current source +
+`foundry.toml`, which can drift from what was actually deployed
+(different solc, edited source). Shipping the captured `.json`
+guarantees byte-identical input. The SPDX identifier recorded in the
+yml is mapped to Etherscan's numeric `licenseType` (unrecognized
+licenses submit as "None", which Etherscan accepts).
+
+A single `ETHERSCAN_API_KEY` covers every chain — the v2 API selects
+the chain via the `chainid` query parameter, so there is no per-chain
+endpoint table or verifier config file to maintain.
 
 ### Clones
 
-Clones have no `<addr>.json` because an EIP-1167 proxy is not verified
-by recompiling source — it is verified by linking it to its already-
-verified implementation. `verify.sh` detects clones by absence of
-`<addr>.json` and submits a proxy-verification request appropriate to
-each explorer's API (e.g. Etherscan's `verifyproxycontract`
-endpoint), which auto-detects the implementation and links the proxy
-to the prototype's verified source.
+Clones have no `<addr>.json`. When `verify.sh` is pointed at a
+`kind: clone` entry it does not call any proxy-verification endpoint;
+it prints the deployer (prototype) address and instructs you to verify
+that instead. Once the prototype's source is verified, Etherscan
+auto-detects each EIP-1167 proxy and inherits the prototype's source.
 
 ## Salt mining
 
-Salt mining is upstream of prediction: it produces the salt or variant
-values that get committed to `.env` and consumed by the per-contract
-prediction script. Mining is not part of normal deployment workflow —
-once a salt is committed, it is reused across all chains.
+Salt mining is upstream of prediction: it produces the salt (for
+prototypes) or variant (for clones) that gets written into the
+per-contract predict script and consumed on every chain. Mining is not
+part of normal deployment — once a salt/variant is chosen it is reused
+everywhere.
 
-Shared helpers in `lib.sh` may include `mine_proto` and `mine_clone`
-wrappers that compute the right `initcode-hash` and `args-hash` inputs
-and shell out to `saltminer`, but the artifacts under `io/<contract>/`
-record only the resulting salt or variant, not the mining run.
+### Tool
 
-## Migration: retiring `Proto.s.sol`
+[saltminer](https://github.com/uniteum/saltminer) is the GPU-based
+miner. Inputs:
 
-[`crucible/script/Proto.s.sol`](../script/Proto.s.sol) is the current
-Solidity-based prototype-deployment helper. Under this design its
-responsibilities split cleanly:
+| Flag              | Prototype                          | Clone                              |
+|-------------------|------------------------------------|------------------------------------|
+| `--deployer`      | Nick (`0x4e59b44...`)              | the Bitsy prototype address        |
+| `--initcodehash`  | `keccak(creationCode ‖ args)`      | `keccak(eip1167(prototype))`       |
+| `--argshash`      | omitted                            | `keccak(args_bytes)`               |
+| `--mask`          | bits the address must match        | same                               |
+| `--target`        | target value under the mask        | same                               |
 
-- **Prediction** moves to `io/<contract>/<contract>.sh`, which sources
-  `lib/crucible/script/lib.sh` and calls `proto_predict`.
-- **Broadcast** moves to `lib/crucible/script/deploy.sh`.
-- **Verification** moves to `lib/crucible/script/verify.sh`.
+For prototypes, saltminer varies the salt directly. For clones it
+varies a variant; the factory's actual salt is `argshash ^ variant`,
+but the value committed and passed to `make(args, variant)` is the
+variant itself.
 
-`Proto.s.sol` will be deprecated and retired once downstream repos
-(`solid`, `lepton`, `unispring`, and others) migrate their prototype
-deployments to this layout. Until then it remains as-is so existing
-deployment scripts continue to work.
+### `mine_clone` helper
+
+[`lib.sh`](../script/lib.sh) provides `clone_proxy_initcode`,
+`clone_args_bytes`, and `mine_clone <deployer> <argstype>
+<argsValue>...`. `mine_clone` reads the target pattern from the
+`mask`/`target` env vars — the same convention `clone_predict` captures
+into the yml — computes the init-code and args hashes from the shared
+formulas, and shells out to `saltminer`, which prints the matching
+variant and resulting address. There is no `mine_proto` helper:
+prototype salts are mined by invoking `saltminer` directly with the
+proto's initcode hash.
+
+### The Bitsy clone convention
+
+Clones produced by Bitsy factories follow a fixed convention:
+
+```solidity
+function make(/* args */, uint256 variant) external returns (address);
+function made(/* args */, uint256 variant) external view returns (bool, address, bytes32);
+```
+
+Both compute `salt = keccak(args_bytes) ^ bytes32(variant)` internally,
+and `make()` calls `Clones.cloneDeterministic(proto, salt, 0)`. This
+shape is what lets `saltminer` vary `variant` without re-encoding
+`args` each iteration. Bitsy contracts that don't follow this
+convention cannot be vanity-mined with `saltminer`. See
+[crucible/.claude/skills/bitsify/SKILL.md](../.claude/skills/bitsify/SKILL.md)
+for the full pattern.
+
+## Status
+
+The pipeline is implemented and in use: consumer repos predict their
+prototypes and clones through `io/<contract>/<contract>.sh` +
+`deploy.sh`/`verify.sh`, and the
+[`predict` skill](../.claude/skills/predict/SKILL.md) generates new
+recipes.
+
+The legacy Forge helper [`script/Proto.s.sol`](../script/Proto.s.sol)
+(`ProtoScript`) is superseded and retained only for backward
+compatibility with consumers that still import it via
+`remappings.txt`. crucible deliberately does **not** enumerate which
+consumers still depend on it — a low-level shared layer must not name
+the higher-level repos that use it; that inventory belongs with each
+consumer's own migration tracking. When no consumer imports
+`ProtoScript`, `Proto.s.sol` and the legacy section of
+[`README.md`](../README.md) can be removed.
