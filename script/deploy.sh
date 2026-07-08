@@ -129,6 +129,19 @@ deploy() {
     deployer=$(cast --to-checksum-address "$(yml_field "$yml" deployer)")
     deploy "$deployer"
 
+    # The creation tx is sent to `via` when the yml has one (a two-level
+    # factory such as a Reflector issue, where the address-fixing CREATE2
+    # deployer is not the contract you call); otherwise to the deployer.
+    # Ensure that target is itself deployed before we call it.
+    local via via_raw
+    via_raw=$(yml_field "$yml" via)
+    if [[ -n "$via_raw" ]]; then
+        via=$(cast --to-checksum-address "$via_raw")
+        deploy "$via"
+    else
+        via="$deployer"
+    fi
+
     # Walk constructor-arg addresses captured under `args:` in the yml.
     # Each entry is tested for being a valid address; if so and we have
     # a yml for it, recurse so its dep chain is also satisfied.
@@ -148,12 +161,12 @@ deploy() {
     input=$(cat "${yml%.yml}.txt")
 
     if [[ "$broadcast" -eq 0 ]]; then
-        echo "[dry-run] would deploy $contract → $addr via $deployer on $chain"
+        echo "[dry-run] would deploy $contract → $addr (tx to $via) on $chain"
         return
     fi
 
-    echo "Deploying $contract → $addr via $deployer on $chain..."
-    cast send "$deployer" "$input" --rpc-url "$chain" "${wallet_args[@]}"
+    echo "Deploying $contract → $addr (tx to $via) on $chain..."
+    cast send "$via" "$input" --rpc-url "$chain" "${wallet_args[@]}"
 }
 
 deploy "$target"
